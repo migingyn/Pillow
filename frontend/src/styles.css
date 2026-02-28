@@ -1,34 +1,183 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600&display=swap');
 
-:root {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  color: #0f172a;
-  background: #f8fafc;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 3%;
+    --foreground: 120 20% 85%;
+
+    --card: 0 0% 5%;
+    --card-foreground: 120 15% 82%;
+
+    --popover: 0 0% 5%;
+    --popover-foreground: 120 15% 82%;
+
+    --primary: 120 100% 40%;
+    --primary-foreground: 0 0% 2%;
+
+    --secondary: 120 5% 10%;
+    --secondary-foreground: 120 10% 65%;
+
+    --muted: 120 5% 8%;
+    --muted-foreground: 120 5% 40%;
+
+    --accent: 120 80% 35%;
+    --accent-foreground: 0 0% 2%;
+
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 95%;
+
+    --border: 120 15% 12%;
+    --input: 120 10% 10%;
+    --ring: 120 100% 40%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 4%;
+    --sidebar-foreground: 120 10% 70%;
+    --sidebar-primary: 120 100% 40%;
+    --sidebar-primary-foreground: 0 0% 2%;
+    --sidebar-accent: 120 10% 8%;
+    --sidebar-accent-foreground: 120 10% 70%;
+    --sidebar-border: 120 15% 10%;
+    --sidebar-ring: 120 100% 40%;
+
+    /* Thermal / score tokens */
+    --score-low: 0 80% 42%;
+    --score-mid: 50 100% 50%;
+    --score-high: 120 80% 42%;
+    --neon: 120 100% 45%;
+    --neon-dim: 120 60% 20%;
+    --thermal-cold: 240 70% 35%;
+  }
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
 }
 
-body {
-  margin: 0;
+/* Leaflet dark overrides */
+.leaflet-container {
+  background: #020202 !important;
+  font-family: 'JetBrains Mono', monospace !important;
 }
 
-.app {
-  margin: 0 auto;
-  max-width: 720px;
-  min-height: 100vh;
-  padding: 64px 24px;
+.leaflet-control-zoom a {
+  background: rgba(0, 0, 0, 0.9) !important;
+  color: hsl(120 100% 40%) !important;
+  border-color: hsl(120 15% 15%) !important;
+  font-family: 'JetBrains Mono', monospace !important;
 }
 
-h1 {
-  margin-top: 0;
+.leaflet-control-zoom a:hover {
+  background: rgba(0, 255, 0, 0.08) !important;
+  color: hsl(120 100% 55%) !important;
 }
 
-.ok {
-  color: #166534;
+.leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.85) !important;
+  color: hsl(120 40% 25%) !important;
+  font-size: 9px !important;
+  font-family: 'JetBrains Mono', monospace !important;
 }
 
-.error {
-  color: #b91c1c;
+.leaflet-control-attribution a {
+  color: hsl(120 60% 30%) !important;
+}
+
+/* Tooltip override for thermal style */
+.leaflet-tooltip {
+  background: rgba(0, 0, 0, 0.92) !important;
+  color: hsl(120 100% 50%) !important;
+  border: 1px solid hsl(120 100% 30% / 0.5) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.15), inset 0 0 10px rgba(0, 255, 0, 0.03) !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  padding: 6px 10px !important;
+}
+
+.leaflet-tooltip::before {
+  border-top-color: rgba(0, 255, 0, 0.3) !important;
+}
+
+/* Neon glow utility */
+.neon-text {
+  text-shadow: 0 0 7px hsl(120 100% 45% / 0.6), 0 0 20px hsl(120 100% 45% / 0.3);
+}
+
+.neon-border {
+  box-shadow: 0 0 8px hsl(120 100% 40% / 0.15), inset 0 0 8px hsl(120 100% 40% / 0.05);
+}
+
+/* Thermal scanline effect */
+.thermal-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 0, 0.015) 2px,
+    rgba(0, 255, 0, 0.015) 4px
+  );
+  z-index: 1;
+}
+
+/* Custom range slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: hsl(120 100% 45%);
+  box-shadow: 0 0 8px hsl(120 100% 45% / 0.5);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: hsl(120 100% 45%);
+  box-shadow: 0 0 8px hsl(120 100% 45% / 0.5);
+  cursor: pointer;
+  border: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(0 0% 3%);
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(120 20% 15%);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(120 40% 25%);
 }
