@@ -1,9 +1,21 @@
+// ─── DATASET CONTRACT ────────────────────────────────────────────────────────
+// NeighborhoodData is the shape every dataset entry must satisfy.
+// When real data replaces the LA demo below, each record should conform to this
+// interface. The `scores` block can be extended with additional factors —
+// just mirror any new keys in the Weights interface and FACTOR_LABELS map.
+//
+// COORDINATE CONVENTION: `center` and `polygon` use [lat, lng] order (matching
+// Leaflet / Google Maps convention). MapPage converts them to [lng, lat] for
+// MapLibre/GeoJSON when building the source layer.
+//
+// If real data arrives as GeoJSON, the polygon field can be replaced with a
+// GeoJSON geometry reference and the toGeoJSON() function in MapPage updated.
 export interface NeighborhoodData {
   id: string;
   name: string;
   zip: string;
-  center: [number, number];
-  polygon: [number, number][];
+  center: [number, number];   // [lat, lng]
+  polygon: [number, number][]; // [lat, lng] pairs — MapPage reverses for GeoJSON
   scores: {
     price: number;
     walkability: number;
@@ -37,6 +49,13 @@ export const FACTOR_DESCRIPTIONS: Record<ScoreFactor, string> = {
   airQuality: "Air quality index score",
 };
 
+// ─── LA DEMO DATA ────────────────────────────────────────────────────────────
+// Hardcoded neighborhood records for the Los Angeles demo.
+// All scores are on a 0–100 scale (higher = better for that factor).
+//
+// TO REPLACE WITH REAL DATA: swap this array with records fetched from an API
+// or imported from a JSON file, as long as each entry satisfies NeighborhoodData.
+// The scoring, weighting, and map-rendering code in MapPage is fully data-agnostic.
 export const neighborhoods: NeighborhoodData[] = [
   {
     id: "silver-lake",
@@ -294,6 +313,12 @@ export const DEFAULT_WEIGHTS: Weights = {
   airQuality: 3,
 };
 
+// ─── SCORING UTILITIES ───────────────────────────────────────────────────────
+// These functions are dataset-agnostic — they work with any NeighborhoodData
+// scores block and any Weights object that shares the same keys.
+
+// Weighted average of all active factors. Returns 0–100.
+// Factors with weight 0 are excluded from the average.
 export function calculatePillowIndex(scores: NeighborhoodData["scores"], weights: Weights): number {
   const factors = Object.keys(weights) as ScoreFactor[];
   let totalWeight = 0;
@@ -309,6 +334,11 @@ export function calculatePillowIndex(scores: NeighborhoodData["scores"], weights
   return Math.round(weightedSum / totalWeight);
 }
 
+// Thermal gradient color for a given 0–100 score.
+// Used by UI components (e.g. AreaDetailPanel progress bars).
+// NOTE: MapPage uses a MapLibre-native interpolate expression (HEAT_SCALE)
+// rather than this function, so the map layer color can be updated
+// independently of the data layer. Keep this in sync with HEAT_SCALE in MapPage.tsx.
 export function getScoreColor(score: number): string {
   if (score <= 30) {
     const t = score / 30;
