@@ -37,7 +37,6 @@ const MapPage = () => {
     }));
   }, [weights]);
 
-  // Initialize map once
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -60,7 +59,6 @@ const MapPage = () => {
     };
   }, []);
 
-  // Update polygons when scores change
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -82,29 +80,27 @@ const MapPage = () => {
         { direction: "top", sticky: true }
       );
 
-      polygon.on("click", () => {
-        setSelectedNeighborhood(n);
-      });
+      polygon.on("click", () => setSelectedNeighborhood(n));
 
       polygonsRef.current.push(polygon);
     });
   }, [scoredNeighborhoods]);
 
   return (
-    <div className="h-screen w-screen relative overflow-hidden bg-background thermal-overlay">
+    <div className="h-dvh w-screen relative overflow-hidden bg-background thermal-overlay">
       {/* Top Bar */}
-      <div className="absolute top-0 left-0 right-0 z-[1000] flex items-center gap-3 px-4 py-2.5 bg-background/90 backdrop-blur-md border-b border-border neon-border">
+      <div className="absolute top-0 left-0 right-0 z-[1000] flex items-center gap-3 px-3 sm:px-4 py-2.5 bg-background/90 backdrop-blur-md border-b border-border neon-border">
         <button onClick={() => navigate("/")} className="flex items-center gap-2 shrink-0">
           <div className="h-7 w-7 rounded bg-primary/10 border border-primary/30 flex items-center justify-center">
             <Crosshair className="h-3.5 w-3.5 text-primary" />
           </div>
-          <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider">PILLOW</span>
+          <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">PILLOW</span>
         </button>
-        <div className="flex-1 max-w-md">
+        <div className="flex-1">
           <input
             type="text"
-            placeholder="SEARCH LA NEIGHBORHOOD / ZIP ..."
-            className="w-full px-4 py-2 rounded bg-muted border border-border text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-all tracking-wider uppercase"
+            placeholder="SEARCH NEIGHBORHOOD / ZIP ..."
+            className="w-full px-3 sm:px-4 py-2 rounded bg-muted border border-border text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-all tracking-wider uppercase"
           />
         </div>
         <span className="px-3 py-1 rounded border border-primary/20 text-[10px] font-mono text-primary/60 shrink-0 hidden sm:inline-block tracking-widest uppercase">
@@ -115,22 +111,18 @@ const MapPage = () => {
       {/* Map Container */}
       <div ref={mapContainerRef} className="h-full w-full" />
 
-      {/* Thermal Legend */}
-      <div className="absolute bottom-6 right-6 z-[999] p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border">
+      {/* Thermal Legend — hidden on xs, visible sm+ */}
+      <div className="absolute bottom-4 sm:bottom-6 right-3 sm:right-6 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border hidden sm:block">
         <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">Thermal Index</p>
-        <div className="h-2.5 w-40 rounded-sm overflow-hidden" style={{
-          background: "linear-gradient(to right, #140050, #5014A0, #D01E28, #E08C14, #FFD700, #FFFAE0)"
-        }} />
+        <div className="thermal-gradient-bar h-2.5 w-32 sm:w-40 rounded-sm" />
         <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
           <span>COLD</span>
           <span>HOT</span>
         </div>
       </div>
 
-      {/* Filter Sidebar */}
       <FilterSidebar weights={weights} onWeightsChange={setWeights} />
 
-      {/* Area Detail Panel */}
       <AnimatePresence>
         {selectedNeighborhood && (
           <AreaDetailPanel

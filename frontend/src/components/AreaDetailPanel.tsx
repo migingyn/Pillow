@@ -49,11 +49,11 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
 
   return (
     <motion.div
-      initial={{ x: 400, opacity: 0 }}
+      initial={{ x: "100%", opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      exit={{ x: 400, opacity: 0 }}
+      exit={{ x: "100%", opacity: 0 }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="absolute top-0 right-0 z-[999] h-full w-[340px] bg-background/95 backdrop-blur-xl border-l border-border overflow-y-auto"
+      className="absolute top-0 right-0 z-[999] h-full w-full sm:w-80 bg-background/95 backdrop-blur-xl border-l border-border overflow-y-auto"
     >
       <div className="p-4 pt-14">
         {/* Header */}
@@ -68,7 +68,8 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
           </div>
           <button
             onClick={onClose}
-            className="h-7 w-7 rounded border border-border flex items-center justify-center hover:border-primary/40 transition-colors"
+            className="h-7 w-7 rounded border border-border flex items-center justify-center hover:border-primary/40 transition-colors shrink-0"
+            aria-label="Close panel"
           >
             <X className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
@@ -86,7 +87,7 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
 
         <div className="h-px bg-border mb-4" />
 
-        {/* Top Drivers */}
+        {/* Strengths */}
         {topDrivers.length > 0 && (
           <div className="mb-4">
             <h3 className="text-[10px] font-mono font-bold text-primary mb-2 tracking-widest uppercase flex items-center gap-1.5 neon-text">

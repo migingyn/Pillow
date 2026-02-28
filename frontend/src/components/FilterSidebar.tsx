@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crosshair, RotateCcw, ChevronLeft, SlidersHorizontal } from "lucide-react";
 import {
@@ -14,8 +14,18 @@ interface FilterSidebarProps {
 }
 
 const FilterSidebar = ({ weights, onWeightsChange }: FilterSidebarProps) => {
-  const [isOpen, setIsOpen] = useState(true);
+  // Start closed on mobile (< 640px), open on desktop
+  const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 640);
   const factors = useMemo(() => Object.keys(FACTOR_LABELS) as ScoreFactor[], []);
+
+  // Close sidebar when resizing to mobile
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth < 640) setIsOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const handleSliderChange = (factor: ScoreFactor, value: number) => {
     onWeightsChange({ ...weights, [factor]: value });
@@ -27,10 +37,11 @@ const FilterSidebar = ({ weights, onWeightsChange }: FilterSidebarProps) => {
 
   return (
     <>
-      {/* Toggle */}
+      {/* Toggle button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="absolute top-14 left-4 z-[1000] h-9 w-9 rounded bg-background/90 border border-border flex items-center justify-center hover:border-primary/40 transition-colors neon-border"
+        className="absolute top-14 left-3 sm:left-4 z-[1000] h-9 w-9 rounded bg-background/90 border border-border flex items-center justify-center hover:border-primary/40 transition-colors neon-border"
+        aria-label={isOpen ? "Close filter panel" : "Open filter panel"}
       >
         {isOpen ? (
           <ChevronLeft className="h-4 w-4 text-primary" />
@@ -42,11 +53,11 @@ const FilterSidebar = ({ weights, onWeightsChange }: FilterSidebarProps) => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ x: -360, opacity: 0 }}
+            initial={{ x: "-100%", opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -360, opacity: 0 }}
+            exit={{ x: "-100%", opacity: 0 }}
             transition={{ type: "spring", damping: 28, stiffness: 220 }}
-            className="absolute top-0 left-0 z-[999] h-full w-[320px] bg-background/95 backdrop-blur-xl border-r border-border overflow-y-auto"
+            className="absolute top-0 left-0 z-[999] h-full w-full sm:w-80 bg-background/95 backdrop-blur-xl border-r border-border overflow-y-auto"
           >
             <div className="p-4 pt-[72px]">
               {/* Header */}
@@ -72,6 +83,7 @@ const FilterSidebar = ({ weights, onWeightsChange }: FilterSidebarProps) => {
                       </span>
                       <span className="text-[10px] font-mono text-primary font-bold">{weights[factor]}/5</span>
                     </div>
+                    {/* Slider gradient is dynamic so inline style is required here */}
                     <input
                       type="range"
                       min={0}
@@ -104,9 +116,7 @@ const FilterSidebar = ({ weights, onWeightsChange }: FilterSidebarProps) => {
               {/* Thermal Legend */}
               <div className="mt-6 p-3 rounded bg-muted/50 border border-border">
                 <p className="text-[9px] font-mono text-primary/60 mb-2 tracking-widest uppercase">Thermal Scale</p>
-                <div className="h-2.5 rounded-sm overflow-hidden" style={{
-                  background: "linear-gradient(to right, #140050, #5014A0, #D01E28, #E08C14, #FFD700, #FFFAE0)"
-                }} />
+                <div className="thermal-gradient-bar h-2.5 rounded-sm" />
                 <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
                   <span>COLD</span>
                   <span>WARM</span>
