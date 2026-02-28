@@ -4,7 +4,7 @@ React + Vite + TypeScript + Tailwind CSS frontend with an Express backend, confi
 
 ## Stack
 
-- **Frontend**: React 18, Vite, TypeScript, Tailwind CSS v4
+- **Frontend**: React + Vite, TypeScript, Tailwind CSS
 - **Backend**: Express, TypeScript
 - **Deployment**: Vercel (SPA + serverless Express)
 
