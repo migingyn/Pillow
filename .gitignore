@@ -4,3 +4,4 @@ frontend/dist
 .vercel
 npm-debug.log*
 .DS_Store
+.env
