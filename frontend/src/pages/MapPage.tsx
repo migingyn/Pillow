@@ -25,32 +25,55 @@ const THERMAL_STOPS: [number, string][] = [
   [1,    "#FFFAE0"],
 ];
 
-// Build a Mapbox GL fill-color expression driven by weighted score (0-1)
-// Mapped fields — scores_la.geojson (all 0-1, higher = better):
-//   walkability → score_walkability
-//   transit     → score_transit
-//   traffic     → score_vmt (higher = less car-dependent = better)
-// Falls back to pre-computed composite when all three weights are zero.
-function buildColorExpr(weights: Weights): ExpressionSpecification {
-  const wWalk    = weights.walkability / 5;
-  const wTransit = weights.transit     / 5;
-  const wTraffic = weights.traffic     / 5;
-  const denom    = wWalk + wTransit + wTraffic;
+// Build a Mapbox GL fill-color expression driven by weighted score (0-1).
+// Factors with data:
+//   walkability → score_walkability  (scores_la)
+//   transit     → score_transit      (scores_la)
+//   traffic     → score_vmt          (scores_la, higher = less car-dependent)
+//   price       → score_price        (affordability_scores, higher = more affordable)
+//   floodRisk   → score_flood_safe   (nri_risk_scores, inverted: 1 - score_flood)
+//   quakeRisk   → score_quake_safe   (nri_risk_scores, inverted: 1 - score_earthquake)
+//   wildfireRisk→ score_wildfire_safe(nri_risk_scores, inverted: 1 - score_wildfire)
+//   airQuality  → score_air_safe     (calenviroscreen, inverted: 1 - air_quality_composite)
+function buildColorExpr(weights: Weights, selections: FactorSelections): ExpressionSpecification {
+  const wPrice   = weights.price / 5;
+  const wWalk    = selections.livability.walkability ? weights.walkability / 5 : 0;
+  const wTransit = selections.livability.transit     ? weights.transit     / 5 : 0;
+  const wTraffic = weights.traffic / 5;
 
-  const scoreExpr =
-    denom === 0
-      ? ["get", "composite"]
-      : ["/",
-          ["+",
-            ["*", wWalk,    ["get", "score_walkability"]],
-            ["*", wTransit, ["get", "score_transit"]],
-            ["*", wTraffic, ["get", "score_vmt"]],
-          ],
-          denom,
-        ];
+  const envTotal = weights.environmentalRisks / 5;
+  const { floodRisk, earthquakeRisk, wildfireRisk, airQuality } = selections.environmental;
+  const envCount  = [floodRisk, earthquakeRisk, wildfireRisk, airQuality].filter(Boolean).length || 1;
+  const wFlood    = floodRisk      ? envTotal / envCount : 0;
+  const wQuake    = earthquakeRisk ? envTotal / envCount : 0;
+  const wFire     = wildfireRisk   ? envTotal / envCount : 0;
+  const wAir      = airQuality     ? envTotal / envCount : 0;
+  const actualEnv = wFlood + wQuake + wFire + wAir;
+
+  const denom = wPrice + wWalk + wTransit + wTraffic + actualEnv;
+
+  if (denom === 0) {
+    return [
+      "interpolate", ["linear"], ["get", "composite"],
+      ...THERMAL_STOPS.flatMap(([stop, color]) => [stop, color]),
+    ] as ExpressionSpecification;
+  }
 
   return [
-    "interpolate", ["linear"], scoreExpr,
+    "interpolate", ["linear"],
+    ["/",
+      ["+",
+        ["*", wPrice,   ["coalesce", ["get", "score_price"],          0.5]],
+        ["*", wWalk,    ["get", "score_walkability"]],
+        ["*", wTransit, ["get", "score_transit"]],
+        ["*", wTraffic, ["get", "score_vmt"]],
+        ["*", wFlood,   ["coalesce", ["get", "score_flood_safe"],     0.5]],
+        ["*", wQuake,   ["coalesce", ["get", "score_quake_safe"],     0.5]],
+        ["*", wFire,    ["coalesce", ["get", "score_wildfire_safe"],  0.5]],
+        ["*", wAir,     ["coalesce", ["get", "score_air_safe"],       0.5]],
+      ],
+      denom,
+    ],
     ...THERMAL_STOPS.flatMap(([stop, color]) => [stop, color]),
   ] as ExpressionSpecification;
 }
@@ -66,6 +89,11 @@ interface GeocodingFeature {
   center: [number, number]; // [lng, lat]
 }
 
+// ─── DATA TYPES ───────────────────────────────────────────────────────────────
+interface AffordProps { score_affordability: number | null }
+interface NriProps    { score_flood: number; score_earthquake: number; score_wildfire: number }
+interface CesProps    { air_quality_composite: number | null }
+
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 const MapPage = () => {
   const navigate        = useNavigate();
@@ -75,7 +103,7 @@ const MapPage = () => {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [weights, setWeights]         = useState<Weights>({ ...DEFAULT_WEIGHTS });
-  const [selections, setSelections] = useState<FactorSelections>({ ...DEFAULT_SELECTIONS });
+  const [selections, setSelections]   = useState<FactorSelections>({ ...DEFAULT_SELECTIONS });
   const [mapLoaded, setMapLoaded]     = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [clickedBlock, setClickedBlock] = useState<CensusBlockData | null>(null);
@@ -101,14 +129,67 @@ const MapPage = () => {
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
 
-    map.on("load", () => {
+    map.on("load", async () => {
       setDataLoading(true);
 
-      // ── GeoJSON source: 8,248 census blocks with pre-scored fields ───────
+      // ── Fetch and merge all three datasets ────────────────────────────────
+      let scoresGeo: { type: string; features: { properties: Record<string, unknown>; [k: string]: unknown }[] };
+
+      try {
+        const [scoresRaw, affordRaw, nriRaw, cesRaw] = await Promise.all([
+          fetch("/scores_la.geojson").then(r => r.json()),
+          fetch("/affordability_scores.geojson").then(r => r.json()),
+          fetch("/nri_risk_scores.geojson").then(r => r.json()),
+          fetch("/calenviroscreen_air_quality.geojson").then(r => r.json()),
+        ]);
+
+        // Build tract-level lookup maps.
+        // affordability & NRI use 11-digit tract_fips (with leading 0).
+        // CalEnviroScreen census_tract is 10-digit (missing leading 0) → pad to 11.
+        const affordMap = new Map<string, AffordProps>();
+        for (const f of (affordRaw.features as { properties: AffordProps & { tract_fips?: string } }[])) {
+          if (f.properties?.tract_fips) affordMap.set(f.properties.tract_fips, f.properties);
+        }
+
+        const nriMap = new Map<string, NriProps>();
+        for (const f of (nriRaw.features as { properties: NriProps & { tract_fips?: string } }[])) {
+          if (f.properties?.tract_fips) nriMap.set(f.properties.tract_fips, f.properties);
+        }
+
+        const cesMap = new Map<string, CesProps>();
+        for (const f of (cesRaw.features as { properties: CesProps & { census_tract?: string } }[])) {
+          const raw = f.properties?.census_tract;
+          if (raw) cesMap.set(raw.padStart(11, "0"), f.properties);
+        }
+
+        // Enrich each census block feature with tract-level data.
+        // Census block GEOID20 (12 chars) → tract FIPS = first 11 chars.
+        scoresGeo = scoresRaw;
+        for (const feat of scoresGeo.features) {
+          const geoid = feat.properties?.GEOID20;
+          const tract = typeof geoid === "string" ? geoid.slice(0, 11) : null;
+          const afford = tract ? affordMap.get(tract) : undefined;
+          const nri    = tract ? nriMap.get(tract)    : undefined;
+          const ces    = tract ? cesMap.get(tract)    : undefined;
+
+          feat.properties.score_price         = afford?.score_affordability ?? null;
+          feat.properties.score_flood_safe    = nri != null ? 1 - nri.score_flood       : null;
+          feat.properties.score_quake_safe    = nri != null ? 1 - nri.score_earthquake  : null;
+          feat.properties.score_wildfire_safe = nri != null ? 1 - nri.score_wildfire    : null;
+          feat.properties.score_air_safe      = ces?.air_quality_composite != null
+            ? 1 - ces.air_quality_composite
+            : null;
+        }
+      } catch (err) {
+        console.warn("Failed to load supplemental data, falling back to scores only:", err);
+        scoresGeo = await fetch("/scores_la.geojson").then(r => r.json());
+      }
+
+      // ── GeoJSON source: census blocks with enriched fields ────────────────
       map.addSource("census-blocks", {
         type:       "geojson",
-        data:       "/scores_la.geojson",
-        generateId: true,   // sequential ids for feature-state (hover + click)
+        data:       scoresGeo as unknown as GeoJSON.FeatureCollection,
+        generateId: true,
       });
 
       // Find the first symbol layer so census layers are inserted below all labels
@@ -127,7 +208,7 @@ const MapPage = () => {
         source: "census-blocks",
         filter: blockFilter,
         paint:  {
-          "fill-color":   buildColorExpr(DEFAULT_WEIGHTS),
+          "fill-color":   buildColorExpr(DEFAULT_WEIGHTS, DEFAULT_SELECTIONS),
           "fill-opacity": [
             "case",
             ["boolean", ["feature-state", "clicked"], false], 0.95,
@@ -189,7 +270,7 @@ const MapPage = () => {
         map.getCanvas().style.cursor = "crosshair";
 
         const feat  = e.features[0];
-        const p     = feat.properties as Record<string, number | string>;
+        const p     = feat.properties as Record<string, number | string | null>;
 
         // Highlight hovered feature
         if (hoveredId !== null)
@@ -207,9 +288,9 @@ const MapPage = () => {
             <div style="line-height:1.7">
               <div style="color:rgba(0,255,0,0.45);font-size:9px;letter-spacing:.12em;margin-bottom:3px">CENSUS BLOCK</div>
               <div style="font-size:9px;opacity:.5;margin-bottom:5px">${p.GEOID20 ?? "–"}</div>
-              <div>COMPOSITE&nbsp;<span style="color:#FFD700;font-weight:600">${pct(p.composite)}</span></div>
-              <div style="opacity:.75">WALK&nbsp;<span style="color:#aaffaa">${pct(p.score_walkability)}</span>&nbsp;·&nbsp;TRANSIT&nbsp;<span style="color:#aaffaa">${pct(p.score_transit)}</span></div>
-              <div style="opacity:.75">VMT&nbsp;<span style="color:#aaffaa">${pct(p.score_vmt)}</span>&nbsp;·&nbsp;JOBS&nbsp;<span style="color:#aaffaa">${pct(p.score_employment)}</span></div>
+              <div>COMPOSITE&nbsp;<span style="color:#FFD700;font-weight:600">${pct(p.composite)}</span>&nbsp;·&nbsp;AFFORD&nbsp;<span style="color:#aaffaa">${pct(p.score_price)}</span></div>
+              <div style="opacity:.75">WALK&nbsp;<span style="color:#aaffaa">${pct(p.score_walkability)}</span>&nbsp;·&nbsp;TRANSIT&nbsp;<span style="color:#aaffaa">${pct(p.score_transit)}</span>&nbsp;·&nbsp;VMT&nbsp;<span style="color:#aaffaa">${pct(p.score_vmt)}</span></div>
+              <div style="opacity:.75">FLOOD&nbsp;<span style="color:#aaffaa">${pct(p.score_flood_safe)}</span>&nbsp;·&nbsp;QUAKE&nbsp;<span style="color:#aaffaa">${pct(p.score_quake_safe)}</span>&nbsp;·&nbsp;FIRE&nbsp;<span style="color:#aaffaa">${pct(p.score_wildfire_safe)}</span>&nbsp;·&nbsp;AIR&nbsp;<span style="color:#aaffaa">${pct(p.score_air_safe)}</span></div>
             </div>
           `)
           .addTo(map);
@@ -228,7 +309,7 @@ const MapPage = () => {
       map.on("click", "census-heat", (e) => {
         if (!e.features?.length) return;
         const feat = e.features[0];
-        const p    = feat.properties as Record<string, number | string>;
+        const p    = feat.properties as Record<string, number | string | null>;
 
         // Clear previous clicked highlight
         if (clickedIdRef.current !== null)
@@ -238,25 +319,25 @@ const MapPage = () => {
         if (clickedIdRef.current !== null)
           map.setFeatureState({ source: "census-blocks", id: clickedIdRef.current }, { clicked: true });
 
-        const num = (v: unknown) => typeof v === "number" ? v : 0;
+        const num    = (v: unknown) => typeof v === "number" ? v : 0;
+        const numDef = (v: unknown, def = 0.5) => typeof v === "number" ? v : def;
 
         setClickedBlock({
-          geoid:       String(p.GEOID20 ?? ""),
-          walkability: num(p.score_walkability),
-          transit:     num(p.score_transit),
-          vmt:         num(p.score_vmt),
-          employment:  num(p.score_employment),
-          composite:   num(p.composite),
+          geoid:        String(p.GEOID20 ?? ""),
+          walkability:  num(p.score_walkability),
+          transit:      num(p.score_transit),
+          vmt:          num(p.score_vmt),
+          employment:   num(p.score_employment),
+          composite:    num(p.composite),
+          price:        numDef(p.score_price),
+          floodSafe:    numDef(p.score_flood_safe),
+          quakeSafe:    numDef(p.score_quake_safe),
+          fireSafe:     numDef(p.score_wildfire_safe),
+          airSafe:      numDef(p.score_air_safe),
         });
       });
 
-      // Dismiss loading indicator once GeoJSON data is fully parsed
-      map.on("sourcedata", (e) => {
-        const evt = e as mapboxgl.MapSourceDataEvent;
-        if (evt.sourceId === "census-blocks" && evt.isSourceLoaded)
-          setDataLoading(false);
-      });
-
+      setDataLoading(false);
       setMapLoaded(true);
     });
 
@@ -266,12 +347,12 @@ const MapPage = () => {
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-  // ── Re-color heatmap whenever weights change ──────────────────────────────
+  // ── Re-color heatmap whenever weights or selections change ────────────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded || !map.getLayer("census-heat")) return;
-    map.setPaintProperty("census-heat", "fill-color", buildColorExpr(weights));
-  }, [weights, mapLoaded]);
+    map.setPaintProperty("census-heat", "fill-color", buildColorExpr(weights, selections));
+  }, [weights, selections, mapLoaded]);
 
   // ── Search: debounced Mapbox Geocoding API call ───────────────────────────
   const handleSearchInput = (q: string) => {
@@ -312,8 +393,9 @@ const MapPage = () => {
       if (!features.length) return;
 
       const f = features[0];
-      const p = f.properties as Record<string, number | string>;
-      const num = (v: unknown) => typeof v === "number" ? v : 0;
+      const p = f.properties as Record<string, number | string | null>;
+      const num    = (v: unknown) => typeof v === "number" ? v : 0;
+      const numDef = (v: unknown, def = 0.5) => typeof v === "number" ? v : def;
 
       if (clickedIdRef.current !== null)
         map.setFeatureState({ source: "census-blocks", id: clickedIdRef.current }, { clicked: false });
@@ -322,12 +404,17 @@ const MapPage = () => {
         map.setFeatureState({ source: "census-blocks", id: clickedIdRef.current }, { clicked: true });
 
       setClickedBlock({
-        geoid:       String(p.GEOID20 ?? ""),
-        walkability: num(p.score_walkability),
-        transit:     num(p.score_transit),
-        vmt:         num(p.score_vmt),
-        employment:  num(p.score_employment),
-        composite:   num(p.composite),
+        geoid:        String(p.GEOID20 ?? ""),
+        walkability:  num(p.score_walkability),
+        transit:      num(p.score_transit),
+        vmt:          num(p.score_vmt),
+        employment:   num(p.score_employment),
+        composite:    num(p.composite),
+        price:        numDef(p.score_price),
+        floodSafe:    numDef(p.score_flood_safe),
+        quakeSafe:    numDef(p.score_quake_safe),
+        fireSafe:     numDef(p.score_wildfire_safe),
+        airSafe:      numDef(p.score_air_safe),
       });
     });
   };
@@ -432,6 +519,7 @@ const MapPage = () => {
             key={clickedBlock.geoid}
             block={clickedBlock}
             weights={weights}
+            selections={selections}
             onClose={handleBlockClose}
           />
         )}
