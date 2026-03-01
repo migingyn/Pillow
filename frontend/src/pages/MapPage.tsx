@@ -23,14 +23,12 @@ const THERMAL_STOPS: [number, string][] = [
   [1,    "#FFFAE0"],
 ];
 
-// ─── COLOR EXPRESSION ────────────────────────────────────────────────────────
-// scores_la.geojson fields (all 0-1, higher = better):
-//   score_walkability, score_transit, score_vmt, score_employment
-//   composite = equal average of the four
-// Slider mapping: walkability → score_walkability
-//                 transit     → score_transit
-//                 traffic     → score_vmt (higher = less car-dependent = better)
-// Falls back to composite when all three mapped weights are zero.
+// Build a Mapbox GL fill-color expression driven by weighted score (0-1)
+// Mapped fields — scores_la.geojson (all 0-1, higher = better):
+//   walkability → score_walkability
+//   transit     → score_transit
+//   traffic     → score_vmt (higher = less car-dependent = better)
+// Falls back to pre-computed composite when all three weights are zero.
 function buildColorExpr(weights: Weights): ExpressionSpecification {
   const wWalk    = weights.walkability / 5;
   const wTransit = weights.transit     / 5;
@@ -85,11 +83,11 @@ const MapPage = () => {
     map.on("load", () => {
       setDataLoading(true);
 
-      // ── Census-block source (8,248 features with score fields) ──────────
+      // ── GeoJSON source: 8,248 census blocks with pre-scored fields ───────
       map.addSource("census-blocks", {
         type:       "geojson",
         data:       "/scores_la.geojson",
-        generateId: true,   // assigns sequential ids for feature-state (hover)
+        generateId: true,   // sequential ids for feature-state (hover highlight)
       });
 
       // ── Thermal fill layer ───────────────────────────────────────────────
@@ -121,10 +119,10 @@ const MapPage = () => {
 
       // ── Hover popup ──────────────────────────────────────────────────────
       const popup = new mapboxgl.Popup({
-        closeButton:  false,
+        closeButton: false,
         closeOnClick: false,
-        className:    "pillow-popup",
-        offset:       8,
+        className: "pillow-popup",
+        offset:    8,
       });
 
       let hoveredId: string | number | null = null;
@@ -133,9 +131,10 @@ const MapPage = () => {
         if (!e.features?.length) return;
         map.getCanvas().style.cursor = "crosshair";
 
-        const feat = e.features[0];
-        const p    = feat.properties as Record<string, number | string>;
+        const feat  = e.features[0];
+        const p     = feat.properties as Record<string, number | string>;
 
+        // Highlight hovered feature
         if (hoveredId !== null)
           map.setFeatureState({ source: "census-blocks", id: hoveredId }, { hover: false });
         hoveredId = feat.id ?? null;
@@ -168,7 +167,7 @@ const MapPage = () => {
         }
       });
 
-      // Dismiss loading indicator once GeoJSON is fully parsed
+      // Dismiss loading indicator once GeoJSON data is fully parsed
       map.on("sourcedata", (e) => {
         const evt = e as mapboxgl.MapSourceDataEvent;
         if (evt.sourceId === "census-blocks" && evt.isSourceLoaded)

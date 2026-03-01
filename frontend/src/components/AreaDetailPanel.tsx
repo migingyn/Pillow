@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { X, TrendingUp, TrendingDown, Info, Crosshair } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { X, TrendingUp, TrendingDown, Info, Crosshair, Sparkles } from "lucide-react";
 import {
   NeighborhoodData,
   Weights,
@@ -18,6 +19,55 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
   const pillowIndex = calculatePillowIndex(neighborhood.scores, weights);
   const factors = Object.keys(FACTOR_LABELS) as ScoreFactor[];
   const totalWeight = factors.reduce((sum, f) => sum + weights[f], 0);
+
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setAiSummary(null);
+    setAiLoading(true);
+
+    const { scores } = neighborhood;
+    const scoreLines = Object.entries(FACTOR_LABELS)
+      .map(([k, label]) => `- ${label}: ${scores[k as ScoreFactor]}/100`)
+      .join("\n");
+
+    fetch("/api/anthropic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        max_tokens: 200,
+        system:
+          "You are a concise real estate analyst. Given neighborhood factor scores (0–100, higher = better), write 2–3 sentences describing: who this neighborhood suits best, its key strength, and its main trade-off. Be specific and practical. No bullet points.",
+        messages: [
+          {
+            role: "user",
+            content: `Neighborhood: ${neighborhood.name}\nPillow Index: ${pillowIndex}/100\n${scoreLines}`,
+          },
+        ],
+      }),
+    })
+      .then((r) => r.json())
+      .then((data: { content?: { type: string; text: string }[]; error?: string }) => {
+        if (!ctrl.signal.aborted) {
+          setAiSummary(data.content?.[0]?.text ?? data.error ?? "Analysis unavailable.");
+        }
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setAiSummary("Analysis unavailable.");
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setAiLoading(false);
+      });
+
+    return () => ctrl.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [neighborhood.id]);
 
   const scored = factors
     .filter((f) => weights[f] > 0)
@@ -154,6 +204,28 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
           <p className="text-[10px] font-mono text-muted-foreground leading-relaxed">
             Weighted composite of normalized factor scores. Adjust scan parameters to recalculate in real time.
           </p>
+        </div>
+
+        {/* AI Analysis */}
+        <div className="mt-4 p-3 rounded bg-muted/20 border border-primary/20">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Sparkles className="h-3 w-3 text-primary" />
+            <p className="text-[9px] font-mono text-primary/70 tracking-widest uppercase">AI Analysis</p>
+          </div>
+          {aiLoading ? (
+            <div className="flex items-center gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  className="h-1 w-1 rounded-full bg-primary/60"
+                  animate={{ opacity: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] font-mono text-muted-foreground leading-relaxed">{aiSummary}</p>
+          )}
         </div>
       </div>
     </motion.div>
