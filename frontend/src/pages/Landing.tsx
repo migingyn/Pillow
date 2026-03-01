@@ -35,7 +35,6 @@ const Landing = () => {
         </div>
         <div className="flex items-center gap-3 sm:gap-6">
           <span className="text-[10px] font-mono text-muted-foreground tracking-widest uppercase hidden sm:inline">How it works</span>
-          <span className="px-2 sm:px-3 py-1 rounded border border-primary/20 text-[10px] font-mono text-primary/60 tracking-widest">LA DEMO</span>
         </div>
       </nav>
 
@@ -55,7 +54,7 @@ const Landing = () => {
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-display font-bold tracking-tight text-foreground mb-4 sm:mb-6 leading-[1.1]">
             Find the best areas
             <br />
-            <span className="text-primary neon-text">in Los Angeles.</span>
+            <span className="text-primary neon-text">for you.</span>
           </h1>
 
           <p className="text-sm sm:text-base font-mono text-muted-foreground max-w-lg mx-auto mb-8 sm:mb-10 leading-relaxed tracking-wide">

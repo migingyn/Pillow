@@ -242,9 +242,6 @@ const MapPage = () => {
             <span className="text-[10px] font-mono text-primary/60 hidden sm:inline tracking-widest">LOADING DATA…</span>
           </div>
         )}
-        <span className="px-3 py-1 rounded border border-primary/20 text-[10px] font-mono text-primary/60 shrink-0 hidden sm:inline-block tracking-widest uppercase">
-          LA Demo
-        </span>
       </div>
 
       {/* Map */}
