@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Crosshair, RotateCcw, ChevronLeft, SlidersHorizontal } from "lucide-react";
+import { Crosshair, RotateCcw, ChevronLeft, SlidersHorizontal, Send } from "lucide-react";
 import {
   Weights,
   DEFAULT_WEIGHTS,
@@ -89,6 +89,10 @@ const FilterSidebar = ({
   };
 
   const closeDropdown = () => setOpenDropdown(null);
+  const [nlQuery, setNlQuery] = useState("");
+  const [nlLoading, setNlLoading] = useState(false);
+  const [nlFeedback, setNlFeedback] = useState<string | null>(null);
+  const nlAbortRef = useRef<AbortController | null>(null);
 
   // Close sidebar when resizing to mobile
   useEffect(() => {
@@ -101,6 +105,55 @@ const FilterSidebar = ({
 
   const handleReset = () => {
     onWeightsChange({ ...DEFAULT_WEIGHTS });
+    setNlFeedback(null);
+  };
+
+  const handleNlSubmit = async () => {
+    const q = nlQuery.trim();
+    if (!q || nlLoading) return;
+    nlAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    nlAbortRef.current = ctrl;
+    setNlLoading(true);
+    setNlFeedback(null);
+
+    try {
+      const res = await fetch("/api/anthropic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          max_tokens: 300,
+          system: `You are a neighborhood scoring assistant. Given a natural language preference query, return ONLY valid JSON (no markdown, no extra text) with this exact shape:
+{"weights":{"price":0,"walkability":0,"traffic":0,"transit":0,"environmentalRisks":0,"noisePollution":0,"airQuality":0},"summary":"one sentence"}
+Use 0 if a factor is irrelevant, 1–2 for minor importance, 3 for moderate, 4–5 for high priority.`,
+          messages: [{ role: "user", content: q }],
+        }),
+      });
+
+      const data = (await res.json()) as { content?: { text: string }[]; error?: string };
+      const text = data.content?.[0]?.text ?? "";
+
+      const parsed = JSON.parse(text) as {
+        weights: Weights;
+        summary: string;
+      };
+
+      const clamped = Object.fromEntries(
+        (Object.keys(parsed.weights) as ScoreFactor[]).map((k) => [
+          k,
+          Math.min(5, Math.max(0, Math.round(parsed.weights[k]))),
+        ])
+      ) as unknown as Weights;
+
+      onWeightsChange(clamped);
+      setNlFeedback(parsed.summary);
+      setNlQuery("");
+    } catch {
+      if (!ctrl.signal.aborted) setNlFeedback("Could not parse response — try rephrasing.");
+    } finally {
+      if (!ctrl.signal.aborted) setNlLoading(false);
+    }
   };
 
   return (
@@ -413,6 +466,45 @@ const FilterSidebar = ({
               </button>
 
               {/* Match Legend */}
+              {/* NL Query */}
+              <div className="mt-5">
+                <div className="h-px bg-border mb-4" />
+                <p className="text-[9px] font-mono text-primary/60 mb-2 tracking-widest uppercase">Natural Language</p>
+                <p className="text-[10px] font-mono text-muted-foreground mb-3 leading-relaxed">
+                  Describe what matters to you and we'll set the weights.
+                </p>
+                <div className="flex gap-2">
+                  <textarea
+                    rows={2}
+                    value={nlQuery}
+                    onChange={(e) => setNlQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleNlSubmit(); } }}
+                    placeholder="e.g. I want walkable, quiet streets with good air quality"
+                    className="flex-1 resize-none text-[10px] font-mono bg-muted/40 border border-border rounded px-2 py-1.5 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/40 leading-relaxed"
+                  />
+                  <button
+                    onClick={handleNlSubmit}
+                    disabled={nlLoading || !nlQuery.trim()}
+                    className="self-end h-8 w-8 rounded border border-border flex items-center justify-center hover:border-primary/40 disabled:opacity-30 transition-colors shrink-0"
+                    aria-label="Submit query"
+                  >
+                    {nlLoading ? (
+                      <motion.div
+                        className="h-3 w-3 rounded-full border border-primary border-t-transparent"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                      />
+                    ) : (
+                      <Send className="h-3 w-3 text-primary" />
+                    )}
+                  </button>
+                </div>
+                {nlFeedback && (
+                  <p className="mt-2 text-[10px] font-mono text-primary/70 leading-relaxed">{nlFeedback}</p>
+                )}
+              </div>
+
+              {/* Thermal Legend */}
               <div className="mt-6 p-3 rounded bg-muted/50 border border-border">
                 <p className="text-[9px] font-mono text-primary/60 mb-2 tracking-widest uppercase">
                   Match Scale

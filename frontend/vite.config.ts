@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   root: "frontend",
+  envDir: path.resolve(__dirname, ".."),
   plugins: [react()],
   resolve: {
     alias: {
@@ -18,6 +19,9 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  optimizeDeps: {
+    include: ["mapbox-gl"],
   },
   build: {
     outDir: "dist",

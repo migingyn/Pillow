@@ -1,9 +1,16 @@
+// ─── DATASET CONTRACT ────────────────────────────────────────────────────────
+// NeighborhoodData is the shape every dataset entry must satisfy.
+// When real data replaces the LA demo below, each record should conform to this
+// interface. The `scores` block can be extended with additional factors —
+// just mirror any new keys in the Weights interface and FACTOR_LABELS map.
+//
+// Geometry is supplied by the GeoJSON file (frontend/public/la-neighborhoods.geojson).
+// Score records are joined to GeoJSON features by matching `name` at runtime.
+// Neighborhoods in the GeoJSON with no score record default to pillowIndex: 50.
 export interface NeighborhoodData {
   id: string;
-  name: string;
+  name: string;   // Must match the `name` property in la-neighborhoods.geojson exactly
   zip: string;
-  center: [number, number];
-  polygon: [number, number][];
   scores: {
     price: number;
     walkability: number;
@@ -108,7 +115,23 @@ export const FACTOR_DESCRIPTIONS: Record<ScoreFactor, string> = {
   airQuality: "Air quality index score",
 };
 
+// ─── LA DEMO DATA ────────────────────────────────────────────────────────────
+// Score records for Los Angeles neighborhoods. All names must match the `name`
+// property in frontend/public/la-neighborhoods.geojson exactly.
+// All scores are on a 0–100 scale (higher = better for that factor).
+// Neighborhoods in the GeoJSON with no entry here default to pillowIndex: 50.
+//
+// Intentionally spread across the full thermal range:
+//   COLD  (~0–24)   deep purple  — Hollywood, Watts
+//   COOL  (~25–44)  violet/red   — Boyle Heights, Mid-Wilshire, Downtown, Van Nuys
+//   WARM  (~45–64)  orange       — Echo Park, Silver Lake, Koreatown, North Hollywood, Mar Vista
+//   HOT   (~65–81)  gold         — Los Feliz, Eagle Rock, Highland Park, Sherman Oaks, Studio City, Hancock Park
+//   MAX   (~82–100) pale yellow  — Venice, Westwood, Brentwood
+//
+// TO REPLACE WITH REAL DATA: swap this array with records from an API or JSON file.
+// Each entry must satisfy NeighborhoodData. The `name` field must match the GeoJSON.
 export const neighborhoods: NeighborhoodData[] = [
+  // ── COLD (pillowIndex ~15–22) ────────────────────────────────────────────
   {
     id: "silver-lake",
     name: "Silver Lake",
@@ -130,6 +153,20 @@ export const neighborhoods: NeighborhoodData[] = [
       airQuality: 60,
     },
   },
+  {
+    id: "downtown",
+    name: "Downtown",
+    zip: "90012",
+    scores: { price: 45, walkability: 50, traffic: 30, transit: 55, environmentalRisks: 42, noisePollution: 22, airQuality: 38 },
+  },
+  {
+    id: "van-nuys",
+    name: "Van Nuys",
+    zip: "91405",
+    scores: { price: 40, walkability: 38, traffic: 35, transit: 42, environmentalRisks: 38, noisePollution: 32, airQuality: 35 },
+  },
+
+  // ── WARM (pillowIndex ~48–62) ────────────────────────────────────────────
   {
     id: "echo-park",
     name: "Echo Park",
@@ -235,6 +272,8 @@ export const neighborhoods: NeighborhoodData[] = [
       airQuality: 40,
     },
   },
+
+  // ── HOT (pillowIndex ~65–78) ─────────────────────────────────────────────
   {
     id: "los-feliz",
     name: "Los Feliz",
@@ -382,6 +421,8 @@ export const neighborhoods: NeighborhoodData[] = [
       airQuality: 58,
     },
   },
+
+  // ── MAX HEAT (pillowIndex ~80–88) ────────────────────────────────────────
   {
     id: "inglewood",
     name: "Inglewood",
@@ -489,6 +530,9 @@ export const neighborhoods: NeighborhoodData[] = [
   },
 ];
 
+// Name-keyed lookup for fast joins with GeoJSON features at render time.
+export const neighborhoodByName = new Map(neighborhoods.map((n) => [n.name, n]));
+
 export interface Weights {
   price: number;
   walkability: number;
@@ -514,6 +558,12 @@ export function calculatePillowIndex(
   weights: Weights,
   selections: FactorSelections = DEFAULT_SELECTIONS
 ): number {
+// ─── SCORING UTILITIES ───────────────────────────────────────────────────────
+// These functions are dataset-agnostic — they work with any NeighborhoodData
+// scores block and any Weights object that shares the same keys.
+
+// Weighted average of all active factors. Returns 0–100.
+// Factors with weight 0 are excluded from the average.
   const factors = Object.keys(weights) as ScoreFactor[];
   let totalWeight = 0;
   let weightedSum = 0;
@@ -532,6 +582,8 @@ export function calculatePillowIndex(
   return Math.round(weightedSum / totalWeight);
 }
 
+// Thermal gradient color for a given 0–100 score.
+// Used by UI components (e.g. AreaDetailPanel progress bars).
 export function getScoreColor(score: number): string {
   // score: 0..100 (higher = stronger match)
   const t = Math.max(0, Math.min(1, score / 100));
