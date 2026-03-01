@@ -5,7 +5,7 @@ import { Crosshair, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import FilterSidebar from "@/components/FilterSidebar";
-import { Weights, DEFAULT_WEIGHTS } from "@/data/neighborhoods";
+import { Weights, DEFAULT_WEIGHTS, FactorSelections, DEFAULT_SELECTIONS } from "@/data/neighborhoods";
 
 // ─── MAP VIEWPORT ────────────────────────────────────────────────────────────
 const LA_CENTER: [number, number] = [-118.2437, 34.0522];
@@ -59,6 +59,7 @@ const MapPage = () => {
   const mapRef          = useRef<mapboxgl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [weights, setWeights]         = useState<Weights>({ ...DEFAULT_WEIGHTS });
+  const [selections, setSelections] = useState<FactorSelections>({ ...DEFAULT_SELECTIONS });
   const [mapLoaded, setMapLoaded]     = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -248,8 +249,12 @@ const MapPage = () => {
         </div>
       </div>
 
-      <FilterSidebar weights={weights} onWeightsChange={setWeights} />
-
+      <FilterSidebar
+        weights={weights}
+        onWeightsChange={setWeights}
+        selections={selections}
+        onSelectionsChange={setSelections}
+      />
     </div>
   );
 };

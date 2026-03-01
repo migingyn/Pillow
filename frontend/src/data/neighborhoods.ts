@@ -24,6 +24,33 @@ export interface NeighborhoodData {
 
 export type ScoreFactor = keyof NeighborhoodData["scores"];
 
+export type AffordabilityOption = "trueCost";
+export type LivabilityOption = "walkability" | "transit" | "jobOpenings";
+export type EnvironmentalOption =
+  | "floodRisk"
+  | "earthquakeRisk"
+  | "wildfireRisk"
+  | "airQuality"
+  | "noise";
+
+export type FactorSelections = {
+  affordability: Record<AffordabilityOption, boolean>;
+  livability: Record<LivabilityOption, boolean>;
+  environmental: Record<EnvironmentalOption, boolean>;
+};
+
+export const DEFAULT_SELECTIONS: FactorSelections = {
+  affordability: { trueCost: true },
+  livability: { walkability: true, transit: true, jobOpenings: true },
+  environmental: {
+    floodRisk: true,
+    earthquakeRisk: true,
+    wildfireRisk: true,
+    airQuality: true,
+    noise: true,
+  },
+};
+
 export const FACTOR_LABELS: Record<ScoreFactor, string> = {
   price: "Price",
   walkability: "Walkability",
