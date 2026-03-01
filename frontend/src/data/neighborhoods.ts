@@ -30,8 +30,7 @@ export type EnvironmentalOption =
   | "floodRisk"
   | "earthquakeRisk"
   | "wildfireRisk"
-  | "airQuality"
-  | "noise";
+  | "airQuality";
 
 export type FactorSelections = {
   affordability: Record<AffordabilityOption, boolean>;
@@ -47,7 +46,6 @@ export const DEFAULT_SELECTIONS: FactorSelections = {
     earthquakeRisk: true,
     wildfireRisk: true,
     airQuality: true,
-    noise: true,
   },
 };
 
