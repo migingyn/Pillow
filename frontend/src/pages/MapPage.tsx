@@ -93,11 +93,18 @@ const MapPage = () => {
       // Find the first symbol layer so census layers are inserted below all labels
       const firstSymbolId = map.getStyle().layers.find(l => l.type === "symbol")?.id;
 
+      // Blocks to hide (water/non-residential artifacts)
+      const EXCLUDED_GEOIDS = ["060379901000", "060379902000", "060379903000", "060599901000", "060375991001"];
+      const blockFilter: ExpressionSpecification = [
+        "!", ["in", ["get", "GEOID20"], ["literal", EXCLUDED_GEOIDS]],
+      ];
+
       // ── Thermal fill layer ───────────────────────────────────────────────
       map.addLayer({
         id:     "census-heat",
         type:   "fill",
         source: "census-blocks",
+        filter: blockFilter,
         paint:  {
           "fill-color":   buildColorExpr(DEFAULT_WEIGHTS),
           "fill-opacity": [
@@ -114,6 +121,7 @@ const MapPage = () => {
         id:     "census-outline",
         type:   "line",
         source: "census-blocks",
+        filter: blockFilter,
         paint:  {
           "line-color": "rgba(0, 0, 0, 0.18)",
           "line-width": 0.3,
