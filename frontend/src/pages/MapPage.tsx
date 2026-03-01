@@ -13,7 +13,7 @@ const LA_ZOOM = 9.5;
 const MAPBOX_STYLE = "mapbox://styles/mapbox/dark-v11";
 
 // ─── THERMAL COLOR STOPS (matches thermal-gradient-bar in styles.css) ────────
-// Scores 0-1; ramp: cold (dark purple) → hot (pale yellow)
+// Score range 0-1: cold (dark purple) → hot (pale yellow)
 const THERMAL_STOPS: [number, string][] = [
   [0,    "#140050"],
   [0.25, "#5014A0"],
