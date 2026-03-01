@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 
 import FilterSidebar from "@/components/FilterSidebar";
 import CensusBlockPanel, { type CensusBlockData } from "@/components/CensusBlockPanel";
-import { Weights, DEFAULT_WEIGHTS } from "@/data/neighborhoods";
+import { Weights, DEFAULT_WEIGHTS, FactorSelections, DEFAULT_SELECTIONS } from "@/data/neighborhoods";
 
 // ─── MAP VIEWPORT ────────────────────────────────────────────────────────────
 const LA_CENTER: [number, number] = [-118.2437, 34.0522];
@@ -75,6 +75,7 @@ const MapPage = () => {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [weights, setWeights]         = useState<Weights>({ ...DEFAULT_WEIGHTS });
+  const [selections, setSelections] = useState<FactorSelections>({ ...DEFAULT_SELECTIONS });
   const [mapLoaded, setMapLoaded]     = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [clickedBlock, setClickedBlock] = useState<CensusBlockData | null>(null);
@@ -417,8 +418,12 @@ const MapPage = () => {
           <span>HOT</span>
         </div>
       </div>
-
-      <FilterSidebar weights={weights} onWeightsChange={setWeights} />
+      <FilterSidebar
+        weights={weights}
+        onWeightsChange={setWeights}
+        selections={selections}
+        onSelectionsChange={setSelections}
+      />
 
       {/* Census block detail panel */}
       <AnimatePresence>
