@@ -14,16 +14,15 @@ const LA_CENTER: [number, number] = [-118.2437, 34.0522];
 const LA_ZOOM = 9.5;
 const MAPBOX_STYLE = "mapbox://styles/mapbox/dark-v11";
 
-// ─── THERMAL COLOR STOPS (matches thermal-gradient-bar in styles.css) ────────
-// Score range 0-1: cold (dark purple) → hot (pale yellow)
-const THERMAL_STOPS: [number, string][] = [
-  [0,    "#140050"],
-  [0.25, "#5014A0"],
-  [0.5,  "#D01E28"],
-  [0.65, "#E08C14"],
-  [0.8,  "#FFD700"],
-  [1,    "#FFFAE0"],
-];
+// ─── SCORE COLOR SCHEME ──────────────────────────────────────────────────────
+// We are pivoting away from "heatmap" colors.
+// High score => dark green. Mid => yellow. Too low => black.
+const SCORE_CUTOFF = 0.2; // raise for more black, lower for less black
+
+const COLOR_OFF = "#000000"; // below cutoff
+const COLOR_STOP_1 = "#fef9c3"; // light yellow
+const COLOR_STOP_2 = "#facc15"; // yellow
+const COLOR_STOP_3 = "#14532d"; // dark green
 
 // Build a Mapbox GL fill-color expression driven by weighted score (0-1).
 // Factors with data:
@@ -36,45 +35,68 @@ const THERMAL_STOPS: [number, string][] = [
 //   wildfireRisk→ score_wildfire_safe(nri_risk_scores, inverted: 1 - score_wildfire)
 //   airQuality  → score_air_safe     (calenviroscreen, inverted: 1 - air_quality_composite)
 function buildColorExpr(weights: Weights, selections: FactorSelections): ExpressionSpecification {
-  const wPrice   = weights.price / 5;
-  const wWalk    = selections.livability.walkability ? weights.walkability / 5 : 0;
-  const wTransit = selections.livability.transit     ? weights.transit     / 5 : 0;
-  const wTraffic = weights.traffic / 5;
+  // Normalize weights to 0..1, but if slider is OFF (0), exclude it entirely
+const wPrice = weights.price > 0 ? weights.price / 5 : 0;
 
-  const envTotal = weights.environmentalRisks / 5;
-  const { floodRisk, earthquakeRisk, wildfireRisk, airQuality } = selections.environmental;
-  const envCount  = [floodRisk, earthquakeRisk, wildfireRisk, airQuality].filter(Boolean).length || 1;
-  const wFlood    = floodRisk      ? envTotal / envCount : 0;
-  const wQuake    = earthquakeRisk ? envTotal / envCount : 0;
-  const wFire     = wildfireRisk   ? envTotal / envCount : 0;
-  const wAir      = airQuality     ? envTotal / envCount : 0;
-  const actualEnv = wFlood + wQuake + wFire + wAir;
+const wWalk =
+  selections.livability.walkability && weights.walkability > 0 ? weights.walkability / 5 : 0;
 
-  const denom = wPrice + wWalk + wTransit + wTraffic + actualEnv;
+const wTransit =
+  selections.livability.transit && weights.transit > 0 ? weights.transit / 5 : 0;
 
-  if (denom === 0) {
-    return [
-      "interpolate", ["linear"], ["get", "composite"],
-      ...THERMAL_STOPS.flatMap(([stop, color]) => [stop, color]),
-    ] as ExpressionSpecification;
-  }
+// traffic isn't in dropdown, but still should disappear when slider is 0
+const wTraffic = weights.traffic > 0 ? weights.traffic / 5 : 0;
 
+// Environmental slider: if it's 0, exclude all env terms entirely
+const envTotal = weights.environmentalRisks > 0 ? weights.environmentalRisks / 5 : 0;
+const { floodRisk, earthquakeRisk, wildfireRisk, airQuality } = selections.environmental;
+
+const envSelectedCount = [floodRisk, earthquakeRisk, wildfireRisk, airQuality].filter(Boolean).length;
+
+// If env slider is OFF or nothing selected, env weights all go to 0
+const envCount = envTotal > 0 && envSelectedCount > 0 ? envSelectedCount : 1;
+
+const wFlood = envTotal > 0 && floodRisk ? envTotal / envCount : 0;
+const wQuake = envTotal > 0 && earthquakeRisk ? envTotal / envCount : 0;
+const wFire  = envTotal > 0 && wildfireRisk ? envTotal / envCount : 0;
+const wAir   = envTotal > 0 && airQuality ? envTotal / envCount : 0;
+
+const denom = wPrice + wWalk + wTransit + wTraffic + wFlood + wQuake + wFire + wAir;
+
+  // Base score expression (0..1). If denom==0, fall back to composite.
+  const baseScoreExpr: ExpressionSpecification =
+    denom === 0
+      ? (["coalesce", ["to-number", ["get", "composite"]], 0] as ExpressionSpecification)
+      : ([
+          "/",
+          [
+            "+",
+            ["*", wPrice,   ["coalesce", ["to-number", ["get", "score_price"]],         0.5]],
+            ["*", wWalk,    ["coalesce", ["to-number", ["get", "score_walkability"]],   0.5]],
+            ["*", wTransit, ["coalesce", ["to-number", ["get", "score_transit"]],       0.5]],
+            ["*", wTraffic, ["coalesce", ["to-number", ["get", "score_vmt"]],           0.5]],
+            ["*", wFlood,   ["coalesce", ["to-number", ["get", "score_flood_safe"]],    0.5]],
+            ["*", wQuake,   ["coalesce", ["to-number", ["get", "score_quake_safe"]],    0.5]],
+            ["*", wFire,    ["coalesce", ["to-number", ["get", "score_wildfire_safe"]], 0.5]],
+            ["*", wAir,     ["coalesce", ["to-number", ["get", "score_air_safe"]],      0.5]],
+          ],
+          denom,
+        ] as ExpressionSpecification);
+
+  // ✅ Final color: below cutoff = black, else smooth 4-stop yellow→green
   return [
-    "interpolate", ["linear"],
-    ["/",
-      ["+",
-        ["*", wPrice,   ["coalesce", ["get", "score_price"],          0.5]],
-        ["*", wWalk,    ["get", "score_walkability"]],
-        ["*", wTransit, ["get", "score_transit"]],
-        ["*", wTraffic, ["get", "score_vmt"]],
-        ["*", wFlood,   ["coalesce", ["get", "score_flood_safe"],     0.5]],
-        ["*", wQuake,   ["coalesce", ["get", "score_quake_safe"],     0.5]],
-        ["*", wFire,    ["coalesce", ["get", "score_wildfire_safe"],  0.5]],
-        ["*", wAir,     ["coalesce", ["get", "score_air_safe"],       0.5]],
-      ],
-      denom,
+    "case",
+    ["<", baseScoreExpr, SCORE_CUTOFF],
+    COLOR_OFF,
+    [
+      "interpolate",
+      ["linear"],
+      baseScoreExpr,
+      SCORE_CUTOFF, COLOR_STOP_1, // light yellow
+      0.42,        COLOR_STOP_2,  // yellow
+      0.55,        "#84cc16",     // yellow-green
+      0.80,         COLOR_STOP_3,  // dark green
     ],
-    ...THERMAL_STOPS.flatMap(([stop, color]) => [stop, color]),
   ] as ExpressionSpecification;
 }
 
@@ -498,11 +520,11 @@ const MapPage = () => {
 
       {/* Thermal Legend (bottom-right, above nav control) */}
       <div className="absolute bottom-24 sm:bottom-28 right-3 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border">
-        <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">Thermal Index</p>
+        <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">Scoring Index</p>
         <div className="thermal-gradient-bar h-2.5 w-32 sm:w-40 rounded-sm" />
         <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
-          <span>COLD</span>
-          <span>HOT</span>
+          <span>WORST</span>
+          <span>BEST</span>
         </div>
       </div>
       <FilterSidebar
