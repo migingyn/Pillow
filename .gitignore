@@ -5,3 +5,8 @@ frontend/dist
 npm-debug.log*
 .DS_Store
 .env
+.env
+nri_risk_scores.geojson
+scores_la.geojson
+calenviroscreen_air_quality.geojson
+SmartLocationDatabase.gdb
