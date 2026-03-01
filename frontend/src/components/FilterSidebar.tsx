@@ -91,18 +91,16 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
 
   return (
     <>
-      {/* Toggle button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="absolute top-14 left-3 sm:left-4 z-[1000] h-9 w-9 rounded bg-background/90 border border-border flex items-center justify-center hover:border-primary/40 transition-colors neon-border"
-        aria-label={isOpen ? "Close filter panel" : "Open filter panel"}
-      >
-        {isOpen ? (
-          <ChevronLeft className="h-4 w-4 text-primary" />
-        ) : (
-          <SlidersHorizontal className="h-4 w-4 text-primary" />
-        )}
-      </button>
+      {/* Open button â€” only visible when panel is closed, matches logo icon */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="absolute top-[calc(3.5rem+8px)] left-3 sm:left-4 z-[1000] h-7 w-7 rounded bg-primary/10 border border-primary/30 flex items-center justify-center hover:bg-primary/20 transition-colors"
+          aria-label="Open filter panel"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+        </button>
+      )}
 
       <AnimatePresence>
         {isOpen && (
@@ -111,15 +109,24 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: "-100%", opacity: 0 }}
             transition={{ type: "spring", damping: 28, stiffness: 220 }}
-            className="absolute top-0 left-0 z-[999] h-full w-full sm:w-80 bg-background/95 backdrop-blur-xl border-r border-border overflow-y-auto"
+            className="absolute top-0 left-0 z-[999] h-full w-[calc(100vw-2.5rem)] sm:w-80 bg-background/95 backdrop-blur-xl border-r border-border overflow-y-auto"
           >
-            <div className="p-4 pt-[72px]">
+            <div className="p-4 pt-16">
               {/* Header */}
-              <div className="flex items-center gap-2 mb-1">
-                <Crosshair className="h-3.5 w-3.5 text-primary" />
-                <h2 className="font-mono font-bold text-primary text-xs tracking-widest uppercase neon-text">
-                  Scan Parameters
-                </h2>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Crosshair className="h-3.5 w-3.5 text-primary" />
+                  <h2 className="font-mono font-bold text-primary text-xs tracking-widest uppercase neon-text">
+                    Scan Parameters
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="h-7 w-7 rounded bg-primary/10 border border-primary/30 flex items-center justify-center hover:bg-primary/20 transition-colors shrink-0"
+                  aria-label="Close filter panel"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 text-primary" />
+                </button>
               </div>
               <p className="text-[10px] font-mono text-muted-foreground mb-5 tracking-wide">
                 Adjust weights â€” heatmap updates in real time
@@ -186,7 +193,7 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                   <button
                     onClick={handleNlSubmit}
                     disabled={nlLoading || !nlQuery.trim()}
-                    className="self-end h-8 w-8 rounded border border-border flex items-center justify-center hover:border-primary/40 disabled:opacity-30 transition-colors shrink-0"
+                    className="self-end h-10 w-10 sm:h-8 sm:w-8 rounded border border-border flex items-center justify-center hover:border-primary/40 disabled:opacity-30 transition-colors shrink-0"
                     aria-label="Submit query"
                   >
                     {nlLoading ? (

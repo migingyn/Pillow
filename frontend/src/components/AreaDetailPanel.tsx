@@ -103,7 +103,7 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: "100%", opacity: 0 }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="absolute top-0 right-0 z-[999] h-full w-full sm:w-80 bg-background/95 backdrop-blur-xl border-l border-border overflow-y-auto"
+      className="absolute top-0 right-0 z-[999] h-full w-[calc(100vw-2.5rem)] sm:w-80 bg-background/95 backdrop-blur-xl border-l border-border overflow-y-auto"
     >
       <div className="p-4 pt-14">
         {/* Header */}
@@ -118,7 +118,7 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
           </div>
           <button
             onClick={onClose}
-            className="h-7 w-7 rounded border border-border flex items-center justify-center hover:border-primary/40 transition-colors shrink-0"
+            className="h-10 w-10 sm:h-7 sm:w-7 rounded border border-border flex items-center justify-center hover:border-primary/40 transition-colors shrink-0"
             aria-label="Close panel"
           >
             <X className="h-3.5 w-3.5 text-muted-foreground" />
