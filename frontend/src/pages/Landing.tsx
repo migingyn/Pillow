@@ -69,7 +69,7 @@ let hasBooted = false;
 const benefits = [
   {
     icon: <BarChart3 className="h-5 w-5" />,
-    title: "Pillow Index (0–100)",
+    title: "Locus Index (0–100)",
     description: "Thermal composite score from real livability data.",
   },
   {
@@ -280,7 +280,7 @@ const Landing = () => {
             className="text-3xl sm:text-4xl md:text-5xl font-display font-bold text-foreground mb-6 leading-tight"
           >
             How the{" "}
-            <span className="text-primary neon-text">Pillow Index</span>
+            <span className="text-primary neon-text">Locus Index</span>
             <br />is calculated.
           </motion.h2>
 
@@ -292,7 +292,7 @@ const Landing = () => {
             transition={{ duration: 0.6, delay: 0.18 }}
             className="font-mono text-sm text-muted-foreground leading-relaxed mb-14 max-w-xl"
           >
-            Pillow aggregates publicly available data across Los Angeles census blocks — walkability,
+            Locus.Ai aggregates publicly available data across Los Angeles census blocks — walkability,
             transit access, employment proximity, and vehicle miles traveled — into a single
             0–100 thermal score. Every factor is independently adjustable so the map reflects
             your priorities, not a fixed formula.

@@ -287,7 +287,7 @@ const MapPage = () => {
       const popup = new mapboxgl.Popup({
         closeButton: false,
         closeOnClick: false,
-        className: "pillow-popup",
+        className: "locus-popup",
         offset:    8,
       });
 
