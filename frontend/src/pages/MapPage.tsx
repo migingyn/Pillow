@@ -66,19 +66,19 @@ const denom = wPrice + wWalk + wTransit + wTraffic + wFlood + wQuake + wFire + w
   // Base score expression (0..1). If denom==0, fall back to composite.
   const baseScoreExpr: ExpressionSpecification =
     denom === 0
-      ? (["coalesce", ["to-number", ["get", "composite"]], 0] as ExpressionSpecification)
+      ? (["to-number", ["coalesce", ["get", "composite"], 0.5]] as ExpressionSpecification)
       : ([
           "/",
           [
             "+",
-            ["*", wPrice,   ["coalesce", ["to-number", ["get", "score_price"]],         0.5]],
-            ["*", wWalk,    ["coalesce", ["to-number", ["get", "score_walkability"]],   0.5]],
-            ["*", wTransit, ["coalesce", ["to-number", ["get", "score_transit"]],       0.5]],
-            ["*", wTraffic, ["coalesce", ["to-number", ["get", "score_vmt"]],           0.5]],
-            ["*", wFlood,   ["coalesce", ["to-number", ["get", "score_flood_safe"]],    0.5]],
-            ["*", wQuake,   ["coalesce", ["to-number", ["get", "score_quake_safe"]],    0.5]],
-            ["*", wFire,    ["coalesce", ["to-number", ["get", "score_wildfire_safe"]], 0.5]],
-            ["*", wAir,     ["coalesce", ["to-number", ["get", "score_air_safe"]],      0.5]],
+            ["*", wPrice,   ["to-number", ["coalesce", ["get", "score_price"],         0.5]]],
+            ["*", wWalk,    ["to-number", ["coalesce", ["get", "score_walkability"],   0.5]]],
+            ["*", wTransit, ["to-number", ["coalesce", ["get", "score_transit"],       0.5]]],
+            ["*", wTraffic, ["to-number", ["coalesce", ["get", "score_vmt"],           0.5]]],
+            ["*", wFlood,   ["to-number", ["coalesce", ["get", "score_flood_safe"],    0.5]]],
+            ["*", wQuake,   ["to-number", ["coalesce", ["get", "score_quake_safe"],    0.5]]],
+            ["*", wFire,    ["to-number", ["coalesce", ["get", "score_wildfire_safe"], 0.5]]],
+            ["*", wAir,     ["to-number", ["coalesce", ["get", "score_air_safe"],      0.5]]],
           ],
           denom,
         ] as ExpressionSpecification);
