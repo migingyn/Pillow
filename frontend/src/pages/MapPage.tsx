@@ -90,6 +90,9 @@ const MapPage = () => {
         generateId: true,   // sequential ids for feature-state (hover highlight)
       });
 
+      // Find the first symbol layer so census layers are inserted below all labels
+      const firstSymbolId = map.getStyle().layers.find(l => l.type === "symbol")?.id;
+
       // ── Thermal fill layer ───────────────────────────────────────────────
       map.addLayer({
         id:     "census-heat",
@@ -104,7 +107,7 @@ const MapPage = () => {
             0.72,
           ],
         },
-      });
+      }, firstSymbolId);
 
       // ── Block borders ────────────────────────────────────────────────────
       map.addLayer({
@@ -115,7 +118,16 @@ const MapPage = () => {
           "line-color": "rgba(0, 0, 0, 0.18)",
           "line-width": 0.3,
         },
-      });
+      }, firstSymbolId);
+
+      // ── Boost city label visibility above the thermal fill ───────────────
+      map.getStyle().layers
+        .filter(l => l.type === "symbol")
+        .forEach(l => {
+          map.setPaintProperty(l.id, "text-color", "#ffffff");
+          map.setPaintProperty(l.id, "text-halo-color", "rgba(0,0,0,0.85)");
+          map.setPaintProperty(l.id, "text-halo-width", 2);
+        });
 
       // ── Hover popup ──────────────────────────────────────────────────────
       const popup = new mapboxgl.Popup({
