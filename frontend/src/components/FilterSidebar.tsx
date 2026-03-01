@@ -24,7 +24,6 @@ const FilterSidebar = ({
 }: FilterSidebarProps) => {
   // Start closed on mobile (< 640px), open on desktop
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 640);
-  const [openDropdown, setOpenDropdown] = useState<
   const [openDropdown, setOpenDropdown] = useState<null | "environmental" | "livability">(null);
   const [hoveredEnvKey, setHoveredEnvKey] = useState<string | null>(null);
   const [hoveredLivKey, setHoveredLivKey] = useState<string | null>(null);
