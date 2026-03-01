@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Crosshair, SlidersHorizontal, BarChart3, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ThermalBoot from "@/components/ThermalBoot";
 
 // ─── GLITCH TEXT ──────────────────────────────────────────────────────────────
 // On hover: randomises each character with binary/symbol noise, then resolves
@@ -48,11 +49,21 @@ const GlitchText = ({ text, className }: { text: string; className?: string }) =
   useEffect(() => clear, []);
 
   return (
-    <span className={className} onMouseEnter={start} onMouseLeave={stop}>
+    <span
+      className={className}
+      onMouseEnter={start}
+      onMouseLeave={stop}
+      onTouchStart={start}
+      onTouchEnd={stop}
+    >
       {displayed}
     </span>
   );
 };
+
+// Module-level flag: false on hard reload (JS context destroyed),
+// stays true across SPA navigation (Landing → Map → Landing).
+let hasBooted = false;
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 const benefits = [
@@ -94,6 +105,14 @@ const HOW_IT_WORKS = [
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
 const Landing = () => {
   const navigate = useNavigate();
+  // hasBooted is a module-level var: resets on hard reload, persists across
+  // SPA navigation so the animation doesn't replay when coming back from /map.
+  const [booted, setBooted] = useState(hasBooted);
+
+  const handleBootDone = () => {
+    hasBooted = true;
+    setBooted(true);
+  };
 
   const scrollToAbout = () => {
     const el = document.getElementById("about");
@@ -103,7 +122,9 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-dvh bg-background flex flex-col relative thermal-overlay">
+    <>
+      {!booted && <ThermalBoot onDone={handleBootDone} />}
+      <div className="min-h-dvh bg-background flex flex-col relative thermal-overlay">
 
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-background/80 backdrop-blur-xl border-b border-border">
@@ -116,7 +137,7 @@ const Landing = () => {
         <div className="flex items-center gap-3 sm:gap-6">
           <button
             onClick={scrollToAbout}
-            className="text-[10px] font-mono text-muted-foreground tracking-widest uppercase hidden sm:inline hover:text-primary/70 transition-colors duration-200"
+            className="text-[10px] font-mono text-muted-foreground tracking-widest uppercase hover:text-primary/70 transition-colors duration-200"
           >
             <GlitchText text="About Us" />
           </button>
@@ -335,6 +356,7 @@ const Landing = () => {
       </footer>
 
     </div>
+    </>
   );
 };
 

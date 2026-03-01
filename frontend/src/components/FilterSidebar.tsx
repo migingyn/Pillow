@@ -94,7 +94,7 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
       {/* Toggle button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="absolute top-14 left-3 sm:left-4 z-[1000] h-9 w-9 rounded bg-background/90 border border-border flex items-center justify-center hover:border-primary/40 transition-colors neon-border"
+        className="absolute top-14 left-3 sm:left-4 z-[1000] h-11 w-11 sm:h-9 sm:w-9 rounded bg-background/90 border border-border flex items-center justify-center hover:border-primary/40 transition-colors neon-border"
         aria-label={isOpen ? "Close filter panel" : "Open filter panel"}
       >
         {isOpen ? (
@@ -111,7 +111,7 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: "-100%", opacity: 0 }}
             transition={{ type: "spring", damping: 28, stiffness: 220 }}
-            className="absolute top-0 left-0 z-[999] h-full w-full sm:w-80 bg-background/95 backdrop-blur-xl border-r border-border overflow-y-auto"
+            className="absolute top-0 left-0 z-[999] h-full w-[calc(100vw-2.5rem)] sm:w-80 bg-background/95 backdrop-blur-xl border-r border-border overflow-y-auto"
           >
             <div className="p-4 pt-[72px]">
               {/* Header */}
@@ -186,7 +186,7 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                   <button
                     onClick={handleNlSubmit}
                     disabled={nlLoading || !nlQuery.trim()}
-                    className="self-end h-8 w-8 rounded border border-border flex items-center justify-center hover:border-primary/40 disabled:opacity-30 transition-colors shrink-0"
+                    className="self-end h-10 w-10 sm:h-8 sm:w-8 rounded border border-border flex items-center justify-center hover:border-primary/40 disabled:opacity-30 transition-colors shrink-0"
                     aria-label="Submit query"
                   >
                     {nlLoading ? (

@@ -248,7 +248,7 @@ const MapPage = () => {
       <div ref={mapContainerRef} className="h-full w-full" />
 
       {/* Thermal Legend (bottom-right, above nav control) */}
-      <div className="absolute bottom-24 sm:bottom-28 right-3 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border hidden sm:block">
+      <div className="absolute bottom-24 sm:bottom-28 right-3 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border">
         <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">Thermal Index</p>
         <div className="thermal-gradient-bar h-2.5 w-32 sm:w-40 rounded-sm" />
         <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
