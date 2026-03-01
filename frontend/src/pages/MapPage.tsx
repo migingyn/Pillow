@@ -19,7 +19,7 @@ const MAPBOX_STYLE = "mapbox://styles/mapbox/dark-v11";
 // High score => dark green. Mid => yellow. Too low => black.
 const SCORE_CUTOFF = 0.2; // raise for more black, lower for less black
 
-const COLOR_OFF = "rgba(255, 255, 255, 0.6)" // below cutoff
+const COLOR_OFF = "rgba(0, 0, 0, 0)" // below cutoff; fully transparent
 const COLOR_STOP_1 = "#fef9c3"; // light yellow
 const COLOR_STOP_2 = "#facc15"; // yellow
 const COLOR_STOP_3 = "#14532d"; // dark green
