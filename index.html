@@ -1,0 +1,2014 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClearNest — Neighborhood Intelligence</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0a0c0f;
+        --surface: #111318;
+        --surface2: #181c24;
+        --border: rgba(255, 255, 255, 0.07);
+        --text: #e8eaf0;
+        --muted: #6b7280;
+        --accent: #4fffb0;
+        --accent-dim: rgba(79, 255, 176, 0.12);
+        --danger: #ff6b6b;
+        --warn: #ffd166;
+        --purple: #a78bfa;
+        --purple-dim: rgba(167, 139, 250, 0.12);
+      }
+
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "DM Mono", monospace;
+      }
+
+      #map {
+        position: absolute;
+        inset: 0;
+      }
+
+      /* HEADER */
+      #header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 56px;
+        background: linear-gradient(
+          180deg,
+          rgba(10, 12, 15, 0.98) 0%,
+          rgba(10, 12, 15, 0) 100%
+        );
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+        gap: 12px;
+        z-index: 10;
+        pointer-events: none;
+      }
+      #header .wordmark {
+        font-family: "DM Serif Display", serif;
+        font-size: 22px;
+        letter-spacing: -0.5px;
+      }
+      #header .wordmark span {
+        color: var(--accent);
+      }
+      #header .tagline {
+        font-size: 10px;
+        color: var(--muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+
+      /* CONTROL PANEL */
+      #panel {
+        position: absolute;
+        top: 72px;
+        left: 20px;
+        width: 280px;
+        max-height: calc(100vh - 100px);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        z-index: 10;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+      }
+      #panel::-webkit-scrollbar {
+        width: 4px;
+      }
+      #panel::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      #panel::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 2px;
+      }
+
+      #panel-header {
+        padding: 16px 18px 12px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #panel-header .label {
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      #active-mode {
+        font-size: 10px;
+        color: var(--accent);
+        background: var(--accent-dim);
+        padding: 3px 8px;
+        border-radius: 20px;
+        letter-spacing: 0.08em;
+      }
+
+      /* NL QUERY BOX */
+      #nl-section {
+        padding: 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      #nl-label {
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      #nl-label::before {
+        content: "✦";
+        color: var(--purple);
+        font-size: 10px;
+      }
+      #nl-input-wrap {
+        position: relative;
+      }
+      #nl-input {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        font-family: "DM Mono", monospace;
+        font-size: 11px;
+        padding: 10px 36px 10px 12px;
+        outline: none;
+        resize: none;
+        transition: border-color 0.15s;
+        line-height: 1.5;
+        field-sizing: content;
+        min-height: 38px;
+        max-height: 120px;
+        scrollbar-width: thin;
+      }
+      #nl-input:focus {
+        border-color: var(--purple);
+      }
+      #nl-input::placeholder {
+        color: var(--muted);
+      }
+      #nl-send {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        background: var(--purple);
+        border: none;
+        border-radius: 6px;
+        width: 22px;
+        height: 22px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.15s;
+        font-size: 12px;
+        color: var(--bg);
+      }
+      #nl-send:hover {
+        opacity: 0.8;
+      }
+      #nl-send.loading {
+        background: var(--surface2);
+        cursor: not-allowed;
+      }
+      #nl-send.loading svg {
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #nl-status {
+        margin-top: 8px;
+        font-size: 10px;
+        line-height: 1.5;
+        color: var(--muted);
+        display: none;
+        background: var(--surface2);
+        border-radius: 8px;
+        padding: 8px 10px;
+        border-left: 2px solid var(--purple);
+      }
+      #nl-status.visible {
+        display: block;
+      }
+      #nl-status.error {
+        border-left-color: var(--danger);
+        color: var(--danger);
+      }
+
+      /* CATEGORY BUTTONS */
+      #cat-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding: 14px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .cat-btn {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 10px 8px;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        text-align: left;
+        color: var(--muted);
+        position: relative;
+        overflow: hidden;
+      }
+      .cat-btn::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: var(--accent);
+        opacity: 0;
+        transition: opacity 0.18s ease;
+      }
+      .cat-btn.active {
+        border-color: var(--accent);
+        color: var(--text);
+      }
+      .cat-btn.active::before {
+        opacity: 0.06;
+      }
+      .cat-btn .icon {
+        font-size: 18px;
+        display: block;
+        margin-bottom: 4px;
+        position: relative;
+      }
+      .cat-btn .name {
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        position: relative;
+        font-weight: 500;
+      }
+      .cat-btn .score-preview {
+        font-size: 9px;
+        color: var(--muted);
+        position: relative;
+        margin-top: 1px;
+      }
+      .cat-btn.active .score-preview {
+        color: var(--accent);
+      }
+
+      /* RISK BUTTONS — subtle red tint when active */
+      .risk-btn.active {
+        border-color: #ff6b6b;
+      }
+      .risk-btn.active::before {
+        background: #ff6b6b;
+        opacity: 0.06;
+      }
+      .risk-btn.active .score-preview {
+        color: #ff9999;
+      }
+
+      /* SLIDERS */
+      #sliders-wrap {
+        padding: 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      #sliders-wrap.hidden {
+        display: none;
+      }
+      #sliders-label {
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .slider-row {
+        margin-bottom: 12px;
+      }
+      .slider-row:last-child {
+        margin-bottom: 0;
+      }
+      .slider-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+      .slider-name {
+        font-size: 11px;
+        color: var(--text);
+      }
+      .slider-val {
+        font-size: 10px;
+        color: var(--accent);
+        background: var(--accent-dim);
+        padding: 1px 6px;
+        border-radius: 8px;
+        min-width: 24px;
+        text-align: center;
+      }
+      input[type="range"] {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--surface2);
+        outline: none;
+        cursor: pointer;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        box-shadow: 0 0 0 3px var(--accent-dim);
+        transition: box-shadow 0.15s ease;
+      }
+      input[type="range"]::-webkit-slider-thumb:hover {
+        box-shadow: 0 0 0 6px var(--accent-dim);
+      }
+
+      /* COMPOSITE TOGGLE */
+      #composite-btn {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        width: 100%;
+        color: var(--muted);
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        transition: color 0.15s ease;
+        border-bottom: 1px solid var(--border);
+      }
+      #composite-btn:hover {
+        color: var(--text);
+      }
+      #composite-btn.active {
+        color: var(--accent);
+      }
+      .toggle-dot {
+        width: 28px;
+        height: 16px;
+        background: var(--surface2);
+        border-radius: 8px;
+        position: relative;
+        transition: background 0.18s ease;
+        flex-shrink: 0;
+        border: 1px solid var(--border);
+      }
+      .toggle-dot::after {
+        content: "";
+        position: absolute;
+        left: 2px;
+        top: 2px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--muted);
+        transition: all 0.18s ease;
+      }
+      #composite-btn.active .toggle-dot {
+        background: var(--accent-dim);
+        border-color: var(--accent);
+      }
+      #composite-btn.active .toggle-dot::after {
+        left: 14px;
+        background: var(--accent);
+      }
+
+      /* LEGEND */
+      #legend {
+        padding: 12px 14px;
+      }
+      #legend .leg-label {
+        font-size: 9px;
+        color: var(--muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+      }
+      #legend-bar {
+        height: 6px;
+        border-radius: 3px;
+        background: linear-gradient(
+          90deg,
+          #1a1f3a,
+          #1e4d8c,
+          #0096c7,
+          #48cae4,
+          #4fffb0
+        );
+        margin-bottom: 5px;
+      }
+      #legend-ticks {
+        display: flex;
+        justify-content: space-between;
+        font-size: 9px;
+        color: var(--muted);
+      }
+
+      /* HOVER TOOLTIP */
+      #tooltip {
+        position: absolute;
+        pointer-events: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 11px;
+        z-index: 20;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        min-width: 180px;
+      }
+      #tooltip.visible {
+        opacity: 1;
+      }
+      .tt-geoid {
+        font-size: 9px;
+        color: var(--muted);
+        letter-spacing: 0.1em;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+      }
+      .tt-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        gap: 12px;
+      }
+      .tt-row:last-child {
+        margin-bottom: 0;
+      }
+      .tt-name {
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .tt-bar-wrap {
+        flex: 1;
+        height: 3px;
+        background: var(--surface2);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .tt-bar {
+        height: 100%;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+      .tt-val {
+        font-size: 10px;
+        color: var(--text);
+        min-width: 28px;
+        text-align: right;
+      }
+      .tt-composite {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .tt-composite-label {
+        font-size: 10px;
+        color: var(--text);
+      }
+      .tt-composite-val {
+        font-size: 13px;
+        color: var(--accent);
+        font-weight: 500;
+      }
+      .tt-hint {
+        margin-top: 6px;
+        font-size: 9px;
+        color: var(--purple);
+        letter-spacing: 0.06em;
+      }
+
+      /* BLOCK DETAIL PANEL */
+      #block-panel {
+        position: absolute;
+        top: 72px;
+        right: 20px;
+        width: 320px;
+        max-height: calc(100vh - 100px);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow-y: auto;
+        z-index: 10;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+        transform: translateX(360px);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+      }
+      #block-panel.open {
+        transform: translateX(0);
+      }
+      #block-panel::-webkit-scrollbar {
+        width: 4px;
+      }
+      #block-panel::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 2px;
+      }
+
+      #bp-header {
+        padding: 16px 18px 14px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      #bp-geoid {
+        font-size: 9px;
+        color: var(--muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+      #bp-title {
+        font-family: "DM Serif Display", serif;
+        font-size: 18px;
+        color: var(--text);
+      }
+      #bp-close {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 4px 8px;
+        font-size: 12px;
+        font-family: "DM Mono", monospace;
+        flex-shrink: 0;
+        transition: all 0.15s;
+      }
+      #bp-close:hover {
+        color: var(--text);
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+
+      #bp-scores {
+        padding: 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .bp-score-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .bp-score-row:last-child {
+        margin-bottom: 0;
+      }
+      .bp-icon {
+        font-size: 16px;
+        width: 24px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+      .bp-score-info {
+        flex: 1;
+      }
+      .bp-score-label {
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 3px;
+      }
+      .bp-bar-wrap {
+        height: 4px;
+        background: var(--surface2);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .bp-bar {
+        height: 100%;
+        border-radius: 2px;
+        transition: width 0.4s ease;
+      }
+      .bp-score-num {
+        font-size: 12px;
+        color: var(--text);
+        min-width: 32px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+
+      #bp-composite-row {
+        padding: 14px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .bp-comp-label {
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .bp-comp-val {
+        font-size: 28px;
+        font-family: "DM Serif Display", serif;
+        color: var(--accent);
+      }
+      .bp-comp-sub {
+        font-size: 9px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      /* LLM SUMMARY */
+      #bp-llm {
+        padding: 14px;
+      }
+      #bp-llm-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      #bp-llm-header .llm-icon {
+        font-size: 12px;
+        color: var(--purple);
+      }
+      #bp-llm-header .llm-label {
+        font-size: 9px;
+        color: var(--purple);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      #bp-llm-content {
+        font-size: 11px;
+        line-height: 1.7;
+        color: var(--muted);
+        min-height: 60px;
+      }
+      #bp-llm-content.loading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+      }
+      .llm-dots span {
+        display: inline-block;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--purple);
+        margin-right: 3px;
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      .llm-dots span:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .llm-dots span:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.3;
+          transform: scale(0.8);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      #bp-llm-content p {
+        margin-bottom: 8px;
+      }
+      #bp-llm-content p:last-child {
+        margin-bottom: 0;
+      }
+      #bp-llm-content strong {
+        color: var(--text);
+        font-weight: 500;
+      }
+      #bp-llm-content .highlight-good {
+        color: var(--accent);
+      }
+      #bp-llm-content .highlight-warn {
+        color: var(--warn);
+      }
+      #bp-llm-content .highlight-bad {
+        color: var(--danger);
+      }
+
+      /* TOKEN OVERLAY */
+      #token-overlay {
+        position: absolute;
+        inset: 0;
+        background: var(--bg);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 16px;
+        padding: 40px;
+      }
+      #token-overlay h1 {
+        font-family: "DM Serif Display", serif;
+        font-size: 28px;
+        text-align: center;
+      }
+      #token-overlay h1 span {
+        color: var(--accent);
+      }
+      #token-overlay p {
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+        max-width: 420px;
+        line-height: 1.6;
+      }
+      #token-overlay a {
+        color: var(--accent);
+      }
+      .token-field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 100%;
+        max-width: 420px;
+      }
+      .token-field-label {
+        font-size: 9px;
+        color: var(--muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .token-input {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        font-family: "DM Mono", monospace;
+        font-size: 12px;
+        padding: 12px 16px;
+        width: 100%;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      .token-input:focus {
+        border-color: var(--accent);
+      }
+      #token-btn {
+        background: var(--accent);
+        color: var(--bg);
+        border: none;
+        border-radius: 10px;
+        font-family: "DM Mono", monospace;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        padding: 12px 28px;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      #token-btn:hover {
+        opacity: 0.85;
+      }
+
+      /* STATS BAR */
+      #stats-bar {
+        position: absolute;
+        bottom: 36px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+        pointer-events: none;
+      }
+      .stat-chip {
+        background: rgba(10, 12, 15, 0.88);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 5px 12px;
+        font-size: 10px;
+        color: var(--muted);
+        letter-spacing: 0.08em;
+        backdrop-filter: blur(8px);
+      }
+      .stat-chip span {
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Token overlay -->
+    <div id="token-overlay">
+      <h1>Clear<span>Nest</span></h1>
+      <p>
+        Enter your Mapbox token and Anthropic API key to enable the full
+        experience — including AI-powered neighborhood queries and block
+        analysis.
+      </p>
+
+      <div class="token-field-group">
+        <div class="token-field-label">Mapbox Public Token</div>
+        <input
+          id="token-input"
+          class="token-input"
+          type="text"
+          placeholder="pk.eyJ1IjoiL..."
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="token-field-group">
+        <div class="token-field-label">
+          Groq API Key
+          <span style="color: var(--muted)"
+            >(free at console.groq.com — or set GROQ_API_KEY in proxy)</span
+          >
+        </div>
+        <input
+          id="anthropic-key-input"
+          class="token-input"
+          type="password"
+          placeholder="gsk_… (or set GROQ_API_KEY in proxy)"
+          spellcheck="false"
+        />
+      </div>
+
+      <button id="token-btn" onclick="initMap()">Load Map →</button>
+    </div>
+
+    <!-- Header -->
+    <div id="header">
+      <div>
+        <div class="wordmark">Clear<span>Nest</span></div>
+        <div class="tagline">Neighborhood Intelligence</div>
+      </div>
+    </div>
+
+    <!-- Control panel -->
+    <div id="panel">
+      <div id="panel-header">
+        <span class="label">View Mode</span>
+        <span id="active-mode">COMPOSITE</span>
+      </div>
+
+      <!-- NL Query -->
+      <div id="nl-section">
+        <div id="nl-label">Ask AI to configure</div>
+        <div id="nl-input-wrap">
+          <textarea
+            id="nl-input"
+            rows="1"
+            placeholder="e.g. high walkability and good air quality…"
+            onkeydown="nlKeydown(event)"
+          ></textarea>
+          <button id="nl-send" onclick="runNLQuery()" title="Apply query">
+            <svg
+              id="nl-send-icon"
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+            >
+              <path
+                d="M6 1L11 6L6 11M1 6H11"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <div id="nl-status"></div>
+      </div>
+
+      <!-- Category buttons -->
+      <div id="cat-grid">
+        <button
+          class="cat-btn active"
+          data-cat="walkability"
+          onclick="selectCat(this)"
+        >
+          <span class="icon">🚶</span><span class="name">Walk</span
+          ><span class="score-preview">NatWalkInd</span>
+        </button>
+        <button
+          class="cat-btn active"
+          data-cat="transit"
+          onclick="selectCat(this)"
+        >
+          <span class="icon">🚌</span><span class="name">Transit</span
+          ><span class="score-preview">Routes ¼mi</span>
+        </button>
+        <button
+          class="cat-btn active"
+          data-cat="employment"
+          onclick="selectCat(this)"
+        >
+          <span class="icon">💼</span><span class="name">Jobs</span
+          ><span class="score-preview">Access on foot</span>
+        </button>
+        <button class="cat-btn active" data-cat="vmt" onclick="selectCat(this)">
+          <span class="icon">🚗</span><span class="name">Low VMT</span
+          ><span class="score-preview">Car dependency ↓</span>
+        </button>
+        <button
+          class="cat-btn active"
+          data-cat="airquality"
+          onclick="selectCat(this)"
+          style="grid-column: span 2"
+        >
+          <span class="icon">🌫️</span><span class="name">Air Quality</span
+          ><span class="score-preview"
+            >Ozone · PM2.5 · Diesel PM · Tox. Release</span
+          >
+        </button>
+        <button
+          class="cat-btn active risk-btn"
+          data-cat="wildfire"
+          onclick="selectCat(this)"
+        >
+          <span class="icon">🔥</span><span class="name">Wildfire</span
+          ><span class="score-preview">NRI risk ↓ better</span>
+        </button>
+        <button
+          class="cat-btn active risk-btn"
+          data-cat="flood"
+          onclick="selectCat(this)"
+        >
+          <span class="icon">🌊</span><span class="name">Flood</span
+          ><span class="score-preview">NRI risk ↓ better</span>
+        </button>
+        <button
+          class="cat-btn active risk-btn"
+          data-cat="earthquake"
+          onclick="selectCat(this)"
+          style="grid-column: span 2"
+        >
+          <span class="icon">🏔️</span><span class="name">Earthquake</span
+          ><span class="score-preview">NRI seismic risk ↓ better</span>
+        </button>
+      </div>
+
+      <!-- Composite toggle -->
+      <button id="composite-btn" class="active" onclick="toggleComposite()">
+        <div class="toggle-dot"></div>
+        Weighted composite
+      </button>
+
+      <!-- Sliders -->
+      <div id="sliders-wrap">
+        <div id="sliders-label">Adjust weights</div>
+        <div id="sliders-container"></div>
+      </div>
+
+      <!-- Legend -->
+      <div id="legend">
+        <div class="leg-label">Score range</div>
+        <div id="legend-bar"></div>
+        <div id="legend-ticks">
+          <span>Low</span><span>Mid</span><span>High</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Block detail panel -->
+    <div id="block-panel">
+      <div id="bp-header">
+        <div>
+          <div id="bp-geoid"></div>
+          <div id="bp-title">Block Analysis</div>
+        </div>
+        <button id="bp-close" onclick="closeBlockPanel()">✕</button>
+      </div>
+      <div id="bp-scores"></div>
+      <div id="bp-composite-row">
+        <div>
+          <div class="bp-comp-label">Composite Score</div>
+          <div class="bp-comp-sub" id="bp-comp-sub"></div>
+        </div>
+        <div class="bp-comp-val" id="bp-comp-val">—</div>
+      </div>
+      <div id="bp-llm">
+        <div id="bp-llm-header">
+          <span class="llm-icon">✦</span>
+          <span class="llm-label">AI Analysis</span>
+        </div>
+        <div id="bp-llm-content">Click a block on the map to analyze it.</div>
+      </div>
+    </div>
+
+    <!-- Hover tooltip -->
+    <div id="tooltip">
+      <div class="tt-geoid" id="tt-geoid"></div>
+      <div id="tt-rows"></div>
+      <div class="tt-composite">
+        <span class="tt-composite-label">Composite</span>
+        <span class="tt-composite-val" id="tt-composite">—</span>
+      </div>
+      <div class="tt-hint">Click to analyze with AI</div>
+    </div>
+
+    <!-- Stats bar -->
+    <div id="stats-bar">
+      <div class="stat-chip">Block groups: <span id="stat-count">—</span></div>
+      <div class="stat-chip">Metro: <span>Los Angeles, CA</span></div>
+      <div class="stat-chip">
+        Sources: <span>EPA SLD · CalEnviroScreen · FEMA NRI</span>
+      </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+      // ─────────────────────────────────────────
+      // STATE
+      // ─────────────────────────────────────────
+      const CATEGORIES = [
+        {
+          key: "walkability",
+          label: "Walkability",
+          prop: "score_walkability",
+          icon: "🚶",
+          inverted: false,
+        },
+        {
+          key: "transit",
+          label: "Transit",
+          prop: "score_transit",
+          icon: "🚌",
+          inverted: false,
+        },
+        {
+          key: "employment",
+          label: "Jobs Access",
+          prop: "score_employment",
+          icon: "💼",
+          inverted: false,
+        },
+        {
+          key: "vmt",
+          label: "Low Car Dep.",
+          prop: "score_vmt",
+          icon: "🚗",
+          inverted: false,
+        },
+        {
+          key: "airquality",
+          label: "Air Quality",
+          prop: "score_airquality",
+          icon: "🌫️",
+          inverted: true,
+        },
+        {
+          key: "wildfire",
+          label: "Wildfire Risk",
+          prop: "score_wildfire",
+          icon: "🔥",
+          inverted: true,
+          isRisk: true,
+        },
+        {
+          key: "flood",
+          label: "Flood Risk",
+          prop: "score_flood",
+          icon: "🌊",
+          inverted: true,
+          isRisk: true,
+        },
+        {
+          key: "earthquake",
+          label: "Earthquake Risk",
+          prop: "score_earthquake",
+          icon: "🏔️",
+          inverted: true,
+          isRisk: true,
+        },
+      ];
+
+      // NRI risk lookup: keyed by 11-digit TRACTFIPS
+      let nriLookup = {};
+
+      let map = null;
+      let geojsonData = null;
+      let compositeMode = true;
+      let activeCats = new Set([
+        "walkability",
+        "transit",
+        "employment",
+        "vmt",
+        "airquality",
+        "wildfire",
+        "flood",
+        "earthquake",
+      ]);
+      let weights = {
+        walkability: 5,
+        transit: 5,
+        employment: 5,
+        vmt: 5,
+        airquality: 5,
+        wildfire: 5,
+        flood: 5,
+        earthquake: 5,
+      };
+      let anthropicKey = "";
+      let selectedGeoid = null;
+
+      // ─────────────────────────────────────────
+      // INIT
+      // ─────────────────────────────────────────
+      async function initMap() {
+        const token = document.getElementById("token-input").value.trim();
+        anthropicKey = document
+          .getElementById("anthropic-key-input")
+          .value.trim();
+        if (!token.startsWith("pk.")) {
+          document.getElementById("token-input").style.borderColor =
+            "var(--danger)";
+          return;
+        }
+        document.getElementById("token-overlay").style.display = "none";
+        mapboxgl.accessToken = token;
+
+        map = new mapboxgl.Map({
+          container: "map",
+          style: "mapbox://styles/mapbox/dark-v11",
+          center: [-118.2437, 34.0522],
+          zoom: 9.5,
+          antialias: true,
+        });
+
+        map.addControl(
+          new mapboxgl.NavigationControl({ showCompass: false }),
+          "bottom-right",
+        );
+
+        map.on("load", async () => {
+          let walkData;
+          try {
+            const res = await fetch("./scores_la.geojson");
+            if (!res.ok) throw new Error("not found");
+            walkData = await res.json();
+          } catch (e) {
+            alert("Could not load scores_la.geojson — using sample data.");
+            walkData = getSampleData();
+          }
+
+          let aqLookup = {};
+          try {
+            const res = await fetch("./calenviroscreen_air_quality.geojson");
+            if (!res.ok) throw new Error("not found");
+            const aqData = await res.json();
+            for (const feat of aqData.features) {
+              const tract = feat.properties.census_tract;
+              if (tract)
+                aqLookup[String(tract).replace(/^0+/, "")] =
+                  feat.properties.air_quality_composite ?? null;
+            }
+          } catch (e) {
+            console.warn("Air quality file not found.", e);
+          }
+
+          for (const feat of walkData.features) {
+            const geoid = String(feat.properties.GEOID20 || "");
+            const tractKey = String(parseInt(geoid.slice(0, 11), 10));
+            const aqScore = aqLookup[tractKey] ?? null;
+            feat.properties.score_airquality_raw = aqScore;
+            feat.properties.score_airquality =
+              aqScore !== null ? 1 - aqScore : null;
+          }
+
+          // Load NRI disaster risk GeoJSON
+          try {
+            const res = await fetch("./nri_risk_scores.geojson");
+            if (!res.ok) throw new Error("not found");
+            const nriData = await res.json();
+            for (const feat of nriData.features) {
+              const p = feat.properties;
+              const fips = String(p.tract_fips || p.TRACTFIPS || "")
+                .replace(/^'+/, "")
+                .padStart(11, "0");
+              if (fips) nriLookup[fips] = p;
+            }
+            console.log(`[NRI] Loaded ${Object.keys(nriLookup).length} tracts`);
+          } catch (e) {
+            console.warn(
+              "nri_risk_scores.geojson not found — disaster risk scores will be 0.",
+              e,
+            );
+          }
+
+          // Merge NRI scores into walkData features
+          for (const feat of walkData.features) {
+            const geoid = String(feat.properties.GEOID20 || "").padStart(
+              11,
+              "0",
+            );
+            // GEOID20 is block-group (12 digits), tract is first 11
+            const tractKey = geoid.slice(0, 11);
+            const nri = nriLookup[tractKey];
+            feat.properties.score_wildfire = nri
+              ? (nri.score_wildfire ?? 0)
+              : 0;
+            feat.properties.score_flood = nri ? (nri.score_flood ?? 0) : 0;
+            feat.properties.score_earthquake = nri
+              ? (nri.score_earthquake ?? 0)
+              : 0;
+            feat.properties.nri_composite = nri
+              ? (nri.score_composite ?? 0)
+              : 0;
+            feat.properties.wildfire_rating = nri
+              ? nri.wildfire_rating || ""
+              : "";
+            feat.properties.flood_rating = nri ? nri.flood_rating || "" : "";
+            feat.properties.earthquake_rating = nri
+              ? nri.earthquake_rating || ""
+              : "";
+          }
+
+          geojsonData = walkData;
+          document.getElementById("stat-count").textContent =
+            geojsonData.features.length.toLocaleString();
+
+          map.addSource("neighborhoods", {
+            type: "geojson",
+            data: geojsonData,
+          });
+          map.addLayer({
+            id: "neighborhoods-fill",
+            type: "fill",
+            source: "neighborhoods",
+            paint: {
+              "fill-color": buildColorExpr(),
+              "fill-opacity": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                8,
+                0.75,
+                13,
+                0.55,
+              ],
+            },
+          });
+          map.addLayer({
+            id: "neighborhoods-line",
+            type: "line",
+            source: "neighborhoods",
+            paint: {
+              "line-color": "rgba(255,255,255,0.04)",
+              "line-width": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                9,
+                0.3,
+                13,
+                0.8,
+              ],
+            },
+          });
+          map.addLayer({
+            id: "neighborhoods-hover",
+            type: "fill",
+            source: "neighborhoods",
+            paint: { "fill-color": "rgba(79,255,176,0.15)", "fill-opacity": 0 },
+          });
+          map.addLayer({
+            id: "neighborhoods-selected",
+            type: "fill",
+            source: "neighborhoods",
+            paint: {
+              "fill-color": "rgba(167,139,250,0.3)",
+              "fill-opacity": [
+                "case",
+                ["==", ["get", "GEOID20"], ["literal", "__none__"]],
+                1,
+                0,
+              ],
+            },
+          });
+          map.addLayer({
+            id: "neighborhoods-selected-line",
+            type: "line",
+            source: "neighborhoods",
+            paint: {
+              "line-color": "rgba(167,139,250,0.8)",
+              "line-width": 2,
+              "line-opacity": [
+                "case",
+                ["==", ["get", "GEOID20"], ["literal", "__none__"]],
+                1,
+                0,
+              ],
+            },
+          });
+
+          setupInteractions();
+          buildSliders();
+        });
+      }
+
+      // ─────────────────────────────────────────
+      // COLOR EXPRESSION
+      // ─────────────────────────────────────────
+      function buildColorExpr() {
+        let scoreExpr;
+        if (compositeMode) {
+          const active = [...activeCats];
+          const totalWeight = active.reduce((s, k) => s + (weights[k] || 0), 0);
+          if (active.length === 0 || totalWeight === 0) {
+            scoreExpr = ["get", "composite"];
+          } else {
+            const RISK_CATS = new Set([
+              "wildfire",
+              "flood",
+              "earthquake",
+              "airquality",
+            ]);
+            const terms = active.map((k) => {
+              const prop =
+                k === "airquality" ? "score_airquality" : `score_${k}`;
+              const raw = ["coalesce", ["get", prop], 0];
+              // risk/pollution: invert so lower raw score = better = brighter
+              const val = RISK_CATS.has(k) ? ["-", 1, raw] : raw;
+              return ["*", (weights[k] || 0) / totalWeight, val];
+            });
+            scoreExpr = terms.length === 1 ? terms[0] : ["+", ...terms];
+          }
+        } else {
+          const cat = [...activeCats][0] || "walkability";
+          const RISK_CATS2 = new Set([
+            "wildfire",
+            "flood",
+            "earthquake",
+            "airquality",
+          ]);
+          const prop2 =
+            cat === "airquality" ? "score_airquality" : `score_${cat}`;
+          const raw2 = ["coalesce", ["get", prop2], 0];
+          scoreExpr = RISK_CATS2.has(cat) ? ["-", 1, raw2] : raw2;
+        }
+        return [
+          "interpolate",
+          ["linear"],
+          scoreExpr,
+          0.0,
+          "#0d1117",
+          0.15,
+          "#0d2137",
+          0.3,
+          "#0a3d62",
+          0.45,
+          "#0e6ba8",
+          0.6,
+          "#0096c7",
+          0.75,
+          "#48cae4",
+          0.9,
+          "#90e0ef",
+          1.0,
+          "#4fffb0",
+        ];
+      }
+
+      function updateMap() {
+        if (!map || !map.getLayer("neighborhoods-fill")) return;
+        map.setPaintProperty(
+          "neighborhoods-fill",
+          "fill-color",
+          buildColorExpr(),
+        );
+      }
+
+      // ─────────────────────────────────────────
+      // INTERACTIONS
+      // ─────────────────────────────────────────
+      function setupInteractions() {
+        const tooltip = document.getElementById("tooltip");
+        let hovered = null;
+
+        map.on("mousemove", "neighborhoods-fill", (e) => {
+          if (!e.features.length) return;
+          const feat = e.features[0];
+          const props = feat.properties;
+          hovered = props.GEOID20;
+          map.getCanvas().style.cursor = "pointer";
+
+          const x = e.point.x,
+            y = e.point.y;
+          const tw = 210,
+            th = 190;
+          const tx = x + 16 + tw > window.innerWidth ? x - tw - 16 : x + 16;
+          const ty = y + th > window.innerHeight ? y - th : y;
+          tooltip.style.left = tx + "px";
+          tooltip.style.top = ty + "px";
+          tooltip.classList.add("visible");
+
+          document.getElementById("tt-geoid").textContent =
+            "GEOID " + props.GEOID20;
+
+          const RISK_CATS3 = new Set(["wildfire", "flood", "earthquake"]);
+          const rows = CATEGORIES.map(({ key, label, icon, isRisk }) => {
+            let val, pct, barColor;
+            if (key === "airquality") {
+              val = parseFloat(props.score_airquality_raw) || 0;
+              pct = Math.round(val * 100);
+              barColor =
+                val <= 0.3 ? "#4fffb0" : val <= 0.6 ? "#ffd166" : "#ff6b6b";
+            } else if (isRisk) {
+              val = parseFloat(props[`score_${key}`]) || 0;
+              pct = Math.round(val * 100);
+              // For risk: high score = bad; color red when high
+              barColor =
+                val <= 0.3 ? "#4fffb0" : val <= 0.6 ? "#ffd166" : "#ff6b6b";
+            } else {
+              val = parseFloat(props[`score_${key}`]) || 0;
+              pct = Math.round(val * 100);
+              barColor =
+                val >= 0.7 ? "#4fffb0" : val >= 0.4 ? "#ffd166" : "#ff6b6b";
+            }
+            const ratingKey = key + "_rating";
+            const rating = props[ratingKey]
+              ? ` <span style="font-size:8px;opacity:0.6">${props[ratingKey]}</span>`
+              : "";
+            return `<div class="tt-row"><span class="tt-name">${icon} ${label}${rating}</span><div class="tt-bar-wrap"><div class="tt-bar" style="width:${pct}%;background:${barColor}"></div></div><span class="tt-val">${pct}</span></div>`;
+          }).join("");
+          document.getElementById("tt-rows").innerHTML = rows;
+
+          const active = [...activeCats];
+          const totalWeight = active.reduce((s, k) => s + (weights[k] || 0), 0);
+          const RISK_CATS4 = new Set([
+            "wildfire",
+            "flood",
+            "earthquake",
+            "airquality",
+          ]);
+          let comp = 0;
+          if (totalWeight > 0)
+            for (const k of active) {
+              const p = k === "airquality" ? "score_airquality" : `score_${k}`;
+              const raw = parseFloat(props[p]) || 0;
+              const val = RISK_CATS4.has(k) ? 1 - raw : raw;
+              comp += ((weights[k] || 0) / totalWeight) * val;
+            }
+          else comp = props.composite ?? 0;
+          document.getElementById("tt-composite").textContent = Math.round(
+            comp * 100,
+          );
+        });
+
+        map.on("mouseleave", "neighborhoods-fill", () => {
+          map.getCanvas().style.cursor = "";
+          tooltip.classList.remove("visible");
+          hovered = null;
+        });
+
+        map.on("click", "neighborhoods-fill", (e) => {
+          if (!e.features.length) return;
+          openBlockPanel(e.features[0].properties);
+        });
+      }
+
+      // ─────────────────────────────────────────
+      // BLOCK PANEL
+      // ─────────────────────────────────────────
+      function openBlockPanel(props) {
+        selectedGeoid = props.GEOID20;
+        const panel = document.getElementById("block-panel");
+
+        // Update selected highlight
+        if (map.getLayer("neighborhoods-selected")) {
+          map.setPaintProperty("neighborhoods-selected", "fill-opacity", [
+            "case",
+            ["==", ["get", "GEOID20"], selectedGeoid],
+            1,
+            0,
+          ]);
+          map.setPaintProperty("neighborhoods-selected-line", "line-opacity", [
+            "case",
+            ["==", ["get", "GEOID20"], selectedGeoid],
+            1,
+            0,
+          ]);
+        }
+
+        document.getElementById("bp-geoid").textContent =
+          "GEOID " + props.GEOID20;
+        document.getElementById("bp-title").textContent =
+          "Block Group " + props.GEOID20.slice(-4);
+
+        // Score bars
+        const active = [...activeCats];
+        const totalWeight = active.reduce((s, k) => s + (weights[k] || 0), 0);
+        const RISK_CATS5 = new Set([
+          "wildfire",
+          "flood",
+          "earthquake",
+          "airquality",
+        ]);
+        let comp = 0;
+        if (totalWeight > 0)
+          for (const k of active) {
+            const p = k === "airquality" ? "score_airquality" : `score_${k}`;
+            const raw = parseFloat(props[p]) || 0;
+            const val = RISK_CATS5.has(k) ? 1 - raw : raw;
+            comp += ((weights[k] || 0) / totalWeight) * val;
+          }
+        else comp = props.composite ?? 0;
+
+        const scoreColors = (v) =>
+          v >= 0.7 ? "#4fffb0" : v >= 0.4 ? "#ffd166" : "#ff6b6b";
+
+        const scoresHtml = CATEGORIES.map(({ key, label, icon, isRisk }) => {
+          const rawVal =
+            key === "airquality"
+              ? parseFloat(props.score_airquality_raw) || 0
+              : parseFloat(props[`score_${key}`]) || 0;
+          const pct = Math.round(rawVal * 100);
+          let barColor;
+          if (isRisk || key === "airquality") {
+            // High = bad
+            barColor =
+              rawVal <= 0.3 ? "#4fffb0" : rawVal <= 0.6 ? "#ffd166" : "#ff6b6b";
+          } else {
+            barColor = scoreColors(rawVal);
+          }
+          const ratingKey = key + "_rating";
+          const rating =
+            props[ratingKey] &&
+            props[ratingKey] !== "No Rating" &&
+            props[ratingKey] !== ""
+              ? `<span style="font-size:9px;color:var(--muted);margin-left:4px">${props[ratingKey]}</span>`
+              : "";
+          return `
+            <div class="bp-score-row">
+              <div class="bp-icon">${icon}</div>
+              <div class="bp-score-info">
+                <div class="bp-score-label">${label}${rating}</div>
+                <div class="bp-bar-wrap"><div class="bp-bar" style="width:${pct}%;background:${barColor}"></div></div>
+              </div>
+              <div class="bp-score-num">${pct}</div>
+            </div>`;
+        }).join("");
+        document.getElementById("bp-scores").innerHTML = scoresHtml;
+
+        const compPct = Math.round(comp * 100);
+        document.getElementById("bp-comp-val").textContent = compPct;
+        document.getElementById("bp-comp-sub").textContent =
+          compPct >= 70
+            ? "✦ Strong neighborhood"
+            : compPct >= 45
+              ? "Mixed signals"
+              : "Needs improvement";
+
+        panel.classList.add("open");
+
+        // Trigger LLM analysis
+        generateBlockSummary(props, comp);
+      }
+
+      function closeBlockPanel() {
+        document.getElementById("block-panel").classList.remove("open");
+        selectedGeoid = null;
+        if (map.getLayer("neighborhoods-selected")) {
+          map.setPaintProperty("neighborhoods-selected", "fill-opacity", 0);
+          map.setPaintProperty(
+            "neighborhoods-selected-line",
+            "line-opacity",
+            0,
+          );
+        }
+      }
+
+      async function generateBlockSummary(props, comp) {
+        const contentEl = document.getElementById("bp-llm-content");
+
+        if (!anthropicKey) {
+          contentEl.innerHTML = `<p style="color:var(--muted)">No API key provided. Set ANTHROPIC_API_KEY in your proxy server, or enter a key on startup.</p>`;
+          // Don't return — the proxy may have a key set server-side, try anyway
+        }
+
+        // Build score narrative
+        const walk = Math.round(
+          (parseFloat(props.score_walkability) || 0) * 100,
+        );
+        const transit = Math.round(
+          (parseFloat(props.score_transit) || 0) * 100,
+        );
+        const jobs = Math.round(
+          (parseFloat(props.score_employment) || 0) * 100,
+        );
+        const vmt = Math.round((parseFloat(props.score_vmt) || 0) * 100);
+        const aqRaw = Math.round(
+          (parseFloat(props.score_airquality_raw) || 0) * 100,
+        );
+        const wfire = Math.round((parseFloat(props.score_wildfire) || 0) * 100);
+        const flood = Math.round((parseFloat(props.score_flood) || 0) * 100);
+        const quake = Math.round(
+          (parseFloat(props.score_earthquake) || 0) * 100,
+        );
+        const compPct = Math.round(comp * 100);
+
+        contentEl.className = "loading";
+        contentEl.innerHTML = `<div class="llm-dots"><span></span><span></span><span></span></div><span style="font-size:10px">Analyzing block…</span>`;
+
+        const systemPrompt = `You are a concise urban planning analyst for a neighborhood intelligence app. 
+When given census block group scores, write a short 3–4 sentence plain-English summary. 
+Use markdown-style <strong> for key phrases. 
+Mention standout positives and negatives. Be specific and conversational — not corporate.
+Keep it under 120 words.`;
+
+        const userMsg = `Census Block Group ${props.GEOID20} in Los Angeles has these scores (0–100):
+- Walkability: ${walk}/100
+- Transit access: ${transit}/100
+- Job accessibility on foot: ${jobs}/100
+- Low car dependency (VMT): ${vmt}/100
+- Air pollution risk (higher = worse): ${aqRaw}/100
+- Wildfire risk (higher = more risk): ${wfire}/100  [${props.wildfire_rating || "No Rating"}]
+- Flood risk (higher = more risk): ${flood}/100  [${props.flood_rating || "No Rating"}]
+- Earthquake risk (higher = more risk): ${quake}/100  [${props.earthquake_rating || "No Rating"}]
+- Overall composite score: ${compPct}/100
+
+Write a brief neighborhood analysis for a potential resident. Mention both livability strengths and any notable natural disaster risks.`;
+
+        try {
+          const response = await fetch("/api/anthropic", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(anthropicKey ? { "x-api-key": anthropicKey } : {}),
+            },
+            body: JSON.stringify({
+              model: "claude-3-5-sonnet-20241022",
+              max_tokens: 256,
+              system: systemPrompt,
+              messages: [{ role: "user", content: userMsg }],
+            }),
+          });
+
+          if (!response.ok) throw new Error(`API error ${response.status}`);
+          const data = await response.json();
+          const text = data.content?.[0]?.text || "No summary available.";
+
+          contentEl.className = "";
+          contentEl.innerHTML = text
+            .split("\n")
+            .filter((l) => l.trim())
+            .map((l) => `<p>${l}</p>`)
+            .join("");
+        } catch (err) {
+          contentEl.className = "";
+          contentEl.innerHTML = `<p style="color:var(--danger)">Analysis failed: ${err.message}</p>`;
+        }
+      }
+
+      // ─────────────────────────────────────────
+      // NL QUERY
+      // ─────────────────────────────────────────
+      function nlKeydown(e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          runNLQuery();
+        }
+      }
+
+      async function runNLQuery() {
+        const input = document.getElementById("nl-input");
+        const query = input.value.trim();
+        if (!query) return;
+
+        const statusEl = document.getElementById("nl-status");
+        const sendBtn = document.getElementById("nl-send");
+        const sendIcon = document.getElementById("nl-send-icon");
+
+        // Key may be set server-side in proxy — proceed regardless
+
+        sendBtn.classList.add("loading");
+        sendIcon.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v4M6 6l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.5"/></svg>`;
+        statusEl.className = "visible";
+        statusEl.textContent = "Interpreting query…";
+
+        const systemPrompt = `You are a configuration engine for a neighborhood scoring map.
+Given a user's natural language query about what they want in a neighborhood, respond with ONLY valid JSON in this exact format:
+{
+  "activeCats": ["walkability","transit","employment","vmt","airquality","wildfire","flood","earthquake"],
+  "weights": { "walkability": 5, "transit": 5, "employment": 5, "vmt": 5, "airquality": 5, "wildfire": 5, "flood": 5, "earthquake": 5 },
+  "summary": "Brief 1-sentence explanation of what you configured"
+}
+
+Rules:
+- activeCats: include only categories the user cares about (subset of the 8 keys above)
+- weights: 0–10 integer, higher = more important. All 8 keys always present.
+- If a category isn't mentioned or implied, set weight to 0 and omit from activeCats
+- "airquality" = air quality / pollution / clean air / environment
+- "vmt" = low car dependency / walkable commute / car-free / no driving
+- "employment" = job access / near work / employment centers
+- "transit" = public transit / bus / metro / train
+- "walkability" = walking / pedestrian / walkable streets
+- "wildfire" = wildfire risk / fire danger / burn zone — NOTE: higher weight = user wants LOW wildfire risk areas highlighted
+- "flood" = flood risk / flooding / flood zone — higher weight = user wants LOW flood risk areas
+- "earthquake" = earthquake risk / seismic / fault lines — higher weight = user wants LOW earthquake risk areas
+- "safe from disasters" / "low risk" / "safe neighborhood" implies boost to wildfire + flood + earthquake
+- Boost weights for explicitly prioritized items (7–10). Moderate for mentioned (4–6). Low/0 for unmentioned.
+Do NOT include any text outside the JSON.`;
+
+        try {
+          const response = await fetch("/api/anthropic", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(anthropicKey ? { "x-api-key": anthropicKey } : {}),
+            },
+            body: JSON.stringify({
+              model: "claude-3-5-sonnet-20241022",
+              max_tokens: 512,
+              system: systemPrompt,
+              messages: [{ role: "user", content: query }],
+            }),
+          });
+
+          if (!response.ok) throw new Error(`API error ${response.status}`);
+          const data = await response.json();
+          const raw = data.content?.[0]?.text || "{}";
+          const clean = raw.replace(/```json|```/g, "").trim();
+          const result = JSON.parse(clean);
+
+          // Apply result
+          if (result.activeCats && Array.isArray(result.activeCats)) {
+            activeCats = new Set(
+              result.activeCats.filter((k) =>
+                [
+                  "walkability",
+                  "transit",
+                  "employment",
+                  "vmt",
+                  "airquality",
+                  "wildfire",
+                  "flood",
+                  "earthquake",
+                ].includes(k),
+              ),
+            );
+          }
+          if (result.weights) {
+            for (const k of Object.keys(weights)) {
+              if (result.weights[k] !== undefined)
+                weights[k] = Math.max(
+                  0,
+                  Math.min(10, Number(result.weights[k])),
+                );
+            }
+          }
+
+          // Ensure composite mode is on
+          compositeMode = true;
+          document.getElementById("composite-btn").classList.add("active");
+          document.getElementById("sliders-wrap").classList.remove("hidden");
+
+          // Sync UI
+          document
+            .querySelectorAll(".cat-btn")
+            .forEach((b) =>
+              b.classList.toggle("active", activeCats.has(b.dataset.cat)),
+            );
+          buildSliders();
+          updateActiveMode();
+          updateMap();
+
+          statusEl.className = "visible";
+          statusEl.textContent = result.summary || "Configuration applied.";
+        } catch (err) {
+          statusEl.className = "visible error";
+          statusEl.textContent = "Error: " + err.message;
+        } finally {
+          sendBtn.classList.remove("loading");
+          sendIcon.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1L11 6L6 11M1 6H11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        }
+      }
+
+      // ─────────────────────────────────────────
+      // UI
+      // ─────────────────────────────────────────
+      function selectCat(btn) {
+        const cat = btn.dataset.cat;
+        if (!compositeMode) {
+          document
+            .querySelectorAll(".cat-btn")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          activeCats = new Set([cat]);
+          document.getElementById("active-mode").textContent = btn
+            .querySelector(".name")
+            .textContent.toUpperCase();
+          updateMap();
+          return;
+        }
+        if (activeCats.has(cat)) {
+          if (activeCats.size === 1) return;
+          activeCats.delete(cat);
+          btn.classList.remove("active");
+        } else {
+          activeCats.add(cat);
+          btn.classList.add("active");
+        }
+        updateSliderVisibility();
+        updateMap();
+        updateActiveMode();
+      }
+
+      function toggleComposite() {
+        compositeMode = !compositeMode;
+        const btn = document.getElementById("composite-btn");
+        const slidersWrap = document.getElementById("sliders-wrap");
+        if (compositeMode) {
+          btn.classList.add("active");
+          slidersWrap.classList.remove("hidden");
+          activeCats = new Set([
+            "walkability",
+            "transit",
+            "employment",
+            "vmt",
+            "airquality",
+            "wildfire",
+            "flood",
+            "earthquake",
+          ]);
+          document
+            .querySelectorAll(".cat-btn")
+            .forEach((b) => b.classList.add("active"));
+          updateActiveMode();
+          updateMap();
+        } else {
+          btn.classList.remove("active");
+          slidersWrap.classList.add("hidden");
+          const firstCat = [...activeCats][0] || "walkability";
+          activeCats = new Set([firstCat]);
+          document
+            .querySelectorAll(".cat-btn")
+            .forEach((b) =>
+              b.classList.toggle("active", b.dataset.cat === firstCat),
+            );
+          document.getElementById("active-mode").textContent =
+            firstCat.toUpperCase();
+          updateMap();
+        }
+      }
+
+      function updateActiveMode() {
+        if (!compositeMode) return;
+        const count = activeCats.size;
+        document.getElementById("active-mode").textContent =
+          count === CATEGORIES.length ? "COMPOSITE" : `${count} LAYERS`;
+      }
+
+      function updateSliderVisibility() {
+        document.querySelectorAll(".slider-row").forEach((row) => {
+          row.style.display = activeCats.has(row.dataset.cat) ? "" : "none";
+        });
+      }
+
+      function buildSliders() {
+        const container = document.getElementById("sliders-container");
+        container.innerHTML = "";
+        CATEGORIES.forEach(({ key, label }) => {
+          const row = document.createElement("div");
+          row.className = "slider-row";
+          row.dataset.cat = key;
+          row.style.display = activeCats.has(key) ? "" : "none";
+          row.innerHTML = `<div class="slider-meta"><span class="slider-name">${label}</span><span class="slider-val" id="sv-${key}">${weights[key]}</span></div><input type="range" min="0" max="10" value="${weights[key]}" oninput="onSlider('${key}', this.value)">`;
+          container.appendChild(row);
+        });
+      }
+
+      function onSlider(key, val) {
+        weights[key] = parseFloat(val);
+        document.getElementById(`sv-${key}`).textContent = val;
+        updateMap();
+      }
+
+      // ─────────────────────────────────────────
+      // SAMPLE DATA
+      // ─────────────────────────────────────────
+      function getSampleData() {
+        return {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: {
+                GEOID20: "060371872002",
+                score_walkability: 0.585,
+                score_transit: 0.0,
+                score_employment: 0.87,
+                score_vmt: 0.244,
+                score_airquality: 0.65,
+                score_airquality_raw: 0.35,
+                composite: 0.469,
+              },
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [-118.257, 34.108],
+                    [-118.25, 34.108],
+                    [-118.244, 34.105],
+                    [-118.243, 34.101],
+                    [-118.248, 34.099],
+                    [-118.253, 34.102],
+                    [-118.257, 34.108],
+                  ],
+                ],
+              },
+            },
+            {
+              type: "Feature",
+              properties: {
+                GEOID20: "060371873001",
+                score_walkability: 0.923,
+                score_transit: 0.3,
+                score_employment: 0.982,
+                score_vmt: 0.131,
+                score_airquality: 0.42,
+                score_airquality_raw: 0.58,
+                composite: 0.551,
+              },
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [-118.265, 34.112],
+                    [-118.257, 34.108],
+                    [-118.253, 34.102],
+                    [-118.259, 34.096],
+                    [-118.265, 34.1],
+                    [-118.265, 34.112],
+                  ],
+                ],
+              },
+            },
+          ],
+        };
+      }
+    </script>
+  </body>
+</html>
