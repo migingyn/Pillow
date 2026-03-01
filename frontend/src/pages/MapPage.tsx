@@ -15,6 +15,8 @@ import {
   calculatePillowIndex,
   getScoreColor,
   getScoreBorderColor,
+  FactorSelections,
+  DEFAULT_SELECTIONS,
 } from "@/data/neighborhoods";
 
 type ScoredNeighborhood = NeighborhoodData & { pillowIndex: number };
@@ -28,14 +30,16 @@ const MapPage = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const polygonsRef = useRef<L.Polygon[]>([]);
   const [weights, setWeights] = useState<Weights>({ ...DEFAULT_WEIGHTS });
-  const [selectedNeighborhood, setSelectedNeighborhood] = useState<ScoredNeighborhood | null>(null);
+  const [selections, setSelections] = useState<FactorSelections>({ ...DEFAULT_SELECTIONS });
+  const [selectedNeighborhood, setSelectedNeighborhood] =
+    useState<ScoredNeighborhood | null>(null);
 
   const scoredNeighborhoods = useMemo<ScoredNeighborhood[]>(() => {
     return neighborhoods.map((n) => ({
       ...n,
-      pillowIndex: calculatePillowIndex(n.scores, weights),
+      pillowIndex: calculatePillowIndex(n.scores, weights, selections),
     }));
-  }, [weights]);
+  }, [weights, selections]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -48,7 +52,8 @@ const MapPage = () => {
     });
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
     }).addTo(map);
 
     mapRef.current = map;
@@ -76,7 +81,7 @@ const MapPage = () => {
       }).addTo(map);
 
       polygon.bindTooltip(
-        `<span style="font-weight:bold">${n.name}</span><br/>PILLOW INDEX: ${n.pillowIndex}`,
+        `<span style="font-weight:bold">${n.name}</span><br/>MATCH INDEX: ${n.pillowIndex}`,
         { direction: "top", sticky: true }
       );
 
@@ -94,7 +99,9 @@ const MapPage = () => {
           <div className="h-7 w-7 rounded bg-primary/10 border border-primary/30 flex items-center justify-center">
             <Crosshair className="h-3.5 w-3.5 text-primary" />
           </div>
-          <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">PILLOW</span>
+          <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">
+            PILLOW
+          </span>
         </button>
         <div className="flex-1">
           <input
@@ -111,17 +118,24 @@ const MapPage = () => {
       {/* Map Container */}
       <div ref={mapContainerRef} className="h-full w-full" />
 
-      {/* Thermal Legend — hidden on xs, visible sm+ */}
+      {/* Match Legend — hidden on xs, visible sm+ */}
       <div className="absolute bottom-4 sm:bottom-6 right-3 sm:right-6 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border hidden sm:block">
-        <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">Thermal Index</p>
+        <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">
+          Match Index
+        </p>
         <div className="thermal-gradient-bar h-2.5 w-32 sm:w-40 rounded-sm" />
         <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
-          <span>COLD</span>
-          <span>HOT</span>
+          <span>GREEN / BEST</span>
+          <span>RED / WORST</span>
         </div>
       </div>
 
-      <FilterSidebar weights={weights} onWeightsChange={setWeights} />
+      <FilterSidebar
+        weights={weights}
+        onWeightsChange={setWeights}
+        selections={selections}
+        onSelectionsChange={setSelections}
+      />
 
       <AnimatePresence>
         {selectedNeighborhood && (
