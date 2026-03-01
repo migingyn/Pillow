@@ -156,14 +156,7 @@ input[type="range"]::-moz-range-thumb {
 
 /* Thermal gradient bar — used for legends */
 .thermal-gradient-bar {
-  background: linear-gradient(
-    to right,
-    #16a34a 0%,   /* deep green */
-    #86efac 25%,  /* light green */
-    #facc15 50%,  /* yellow */
-    #fb923c 75%,  /* orange */
-    #dc2626 100%  /* deep red */
-  );
+  background: linear-gradient(to right, #140050, #5014A0, #D01E28, #E08C14, #FFD700, #FFFAE0);
 }
 
 /* Scrollbar */
