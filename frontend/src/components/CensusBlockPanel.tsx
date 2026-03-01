@@ -83,7 +83,7 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
         wFire    * block.fireSafe  +
         wAir     * block.airSafe
       ) / denom;
-  const pillowIndex = Math.round(rawScore * 100);
+  const locusIndex = Math.round(rawScore * 100);
 
   const scores = {
     walkability: Math.round(block.walkability * 100),
@@ -99,7 +99,7 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
   const sorted    = FACTORS.map(f => ({ ...f, score: scores[f.key] })).sort((a, b) => b.score - a.score);
   const strengths = sorted.filter(f => f.score >= 60).slice(0, 3);
   const risks     = sorted.filter(f => f.score <  50).slice(0, 3);
-  const thermal   = getThermalLabel(pillowIndex);
+  const thermal   = getThermalLabel(locusIndex);
 
   // Reverse-geocode lat/lng → zip code for listing site links
   const [zip, setZip] = useState<string | null>(null);
@@ -141,7 +141,7 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
           role: "user",
           content:
             `Census Block: ${block.geoid}\n` +
-            `Pillow Index: ${pillowIndex}/100\n` +
+            `Locus Index: ${locusIndex}/100\n` +
             `Walkability: ${scores.walkability}/100\n` +
             `Transit Access: ${scores.transit}/100\n` +
             `Low Car Dependency: ${scores.vmt}/100\n` +
@@ -197,13 +197,13 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
         {/* Score badge */}
         <div className="flex items-center gap-3 mb-1">
           <motion.span
-            key={pillowIndex}
+            key={locusIndex}
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
             className="text-3xl font-mono font-bold text-foreground"
           >
-            {pillowIndex}
+            {locusIndex}
           </motion.span>
           <span className="text-sm font-mono text-muted-foreground">/100</span>
           <motion.span

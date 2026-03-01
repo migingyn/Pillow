@@ -4,7 +4,7 @@ import { X, TrendingUp, TrendingDown, Info, Crosshair, Sparkles } from "lucide-r
 import {
   NeighborhoodData,
   Weights,
-  calculatePillowIndex,
+  calculateLocusIndex,
   FACTOR_LABELS,
   ScoreFactor,
 } from "@/data/neighborhoods";
@@ -16,7 +16,7 @@ interface AreaDetailPanelProps {
 }
 
 const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProps) => {
-  const pillowIndex = calculatePillowIndex(neighborhood.scores, weights);
+  const locusIndex = calculateLocusIndex(neighborhood.scores, weights);
   const factors = Object.keys(FACTOR_LABELS) as ScoreFactor[];
   const totalWeight = factors.reduce((sum, f) => sum + weights[f], 0);
 
@@ -47,7 +47,7 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
         messages: [
           {
             role: "user",
-            content: `Neighborhood: ${neighborhood.name}\nPillow Index: ${pillowIndex}/100\n${scoreLines}`,
+            content: `Neighborhood: ${neighborhood.name}\nLocus Index: ${locusIndex}/100\n${scoreLines}`,
           },
         ],
       }),
@@ -95,7 +95,7 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
     return { text: "COLD", className: "text-purple-400 border-purple-400/30 bg-purple-400/10" };
   };
 
-  const thermal = getThermalLabel(pillowIndex);
+  const thermal = getThermalLabel(locusIndex);
 
   return (
     <motion.div
@@ -127,7 +127,7 @@ const AreaDetailPanel = ({ neighborhood, weights, onClose }: AreaDetailPanelProp
 
         {/* Index Badge */}
         <div className="flex items-center gap-3 mb-1">
-          <span className="text-3xl font-mono font-bold text-foreground">{pillowIndex}</span>
+          <span className="text-3xl font-mono font-bold text-foreground">{locusIndex}</span>
           <span className="text-sm font-mono text-muted-foreground">/100</span>
           <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border tracking-widest ${thermal.className}`}>
             {thermal.text}

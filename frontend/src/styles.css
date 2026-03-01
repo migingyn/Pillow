@@ -86,7 +86,7 @@
 }
 
 /* Hover popup for thermal style */
-.pillow-popup .mapboxgl-popup-content {
+.locus-popup .mapboxgl-popup-content {
   background: rgba(0, 0, 0, 0.92) !important;
   color: hsl(120 100% 50%) !important;
   border: 1px solid hsl(120 100% 30% / 0.5) !important;
@@ -97,7 +97,7 @@
   padding: 6px 10px !important;
 }
 
-.pillow-popup .mapboxgl-popup-tip {
+.locus-popup .mapboxgl-popup-tip {
   border-top-color: rgba(0, 255, 0, 0.3) !important;
 }
 

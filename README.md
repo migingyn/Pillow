@@ -1,12 +1,37 @@
-# Pillow
+# Locus.Ai
 
-React + Vite + TypeScript + Tailwind CSS frontend with an Express backend, configured for Vercel deployment.
+A thermal livability heat map for Los Angeles and Orange County. Locus.Ai scores every census block across walkability, transit access, car dependency, and employment proximity — then lets you weight those factors to surface neighborhoods that match how you actually want to live.
+
+## Features
+
+- **Thermal heat map** — color-coded from cold (low livability) to hot across ~37,000 LA/OC census blocks
+- **Click any block** — opens a detail panel with factor scores, strengths, risks, and an AI-generated explainer
+- **Adjustable scan parameters** — real-time weight sliders for walkability, transit, and traffic dependency
+- **Search** — fly smoothly to any LA/OC city, neighborhood, or ZIP and auto-open the block panel
+- **AI analysis** — 2–3 sentence insight powered by Claude on every neighborhood and census block
 
 ## Stack
 
-- **Frontend**: React + Vite, TypeScript, Tailwind CSS
+- **Frontend**: React + Vite, TypeScript, Tailwind CSS, Framer Motion
+- **Map**: Mapbox GL JS v3 — vector tiles, feature-state hover/click, geocoding API
 - **Backend**: Express, TypeScript
+- **AI**: Anthropic Claude (`claude-haiku-4-5`)
+- **Data**: EPA Smart Location Database, GTFS transit feeds, LEHD employment data
 - **Deployment**: Vercel (SPA + serverless Express)
+
+## Environment variables
+
+Create a `.env` file in the project root (and/or `frontend/.env` for Vite):
+
+```env
+# frontend/.env
+VITE_MAPBOX_TOKEN=pk....
+
+# root .env (picked up by the backend)
+GROQ_API_KEY=sk-ant-...
+CORS_ORIGIN=http://localhost:5173
+PORT=3000
+```
 
 ## Quick start
 
@@ -33,19 +58,23 @@ npm run dev
 ## Project structure
 
 ```
-├── api/              # Vercel serverless entry point
-├── backend/src/      # Express app
-├── frontend/src/     # React app
-├── vercel.json       # Vercel routing config
-└── tsconfig.json     # Shared TypeScript config
+├── api/                  # Vercel serverless entry point
+├── backend/src/          # Express app + Anthropic proxy
+├── frontend/src/
+│   ├── components/       # FilterSidebar, AreaDetailPanel, CensusBlockPanel, ...
+│   ├── data/             # neighborhoods.ts (scoring data + weight types)
+│   └── pages/            # Landing, MapPage
+├── vercel.json           # Vercel routing config
+└── tsconfig.json         # Shared TypeScript config
 ```
 
 ## Vercel deploy
 
 1. Import this repo in Vercel.
-2. Keep the default install command (`npm install`).
-3. Build command and output directory are defined in `vercel.json`.
-4. Deploy.
+2. Add environment variables (`VITE_MAPBOX_TOKEN`, `GROQ_API_KEY`, `CORS_ORIGIN`) in the Vercel project settings.
+3. Keep the default install command (`npm install`).
+4. Build command and output directory are defined in `vercel.json`.
+5. Deploy.
 
 Vercel will:
 - Build the frontend into `frontend/dist`
