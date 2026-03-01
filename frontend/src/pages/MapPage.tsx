@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import mapboxgl, { type ExpressionSpecification } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { AnimatePresence } from "framer-motion";
 import { Crosshair, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import FilterSidebar from "@/components/FilterSidebar";
+import CensusBlockPanel, { type CensusBlockData } from "@/components/CensusBlockPanel";
 import { Weights, DEFAULT_WEIGHTS } from "@/data/neighborhoods";
 
 // ─── MAP VIEWPORT ────────────────────────────────────────────────────────────
@@ -58,9 +60,12 @@ const MapPage = () => {
   const navigate        = useNavigate();
   const mapRef          = useRef<mapboxgl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const clickedIdRef    = useRef<string | number | null>(null);
+
   const [weights, setWeights]         = useState<Weights>({ ...DEFAULT_WEIGHTS });
   const [mapLoaded, setMapLoaded]     = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
+  const [clickedBlock, setClickedBlock] = useState<CensusBlockData | null>(null);
 
   // ── Initialize map ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -87,7 +92,7 @@ const MapPage = () => {
       map.addSource("census-blocks", {
         type:       "geojson",
         data:       "/scores_la.geojson",
-        generateId: true,   // sequential ids for feature-state (hover highlight)
+        generateId: true,   // sequential ids for feature-state (hover + click)
       });
 
       // Find the first symbol layer so census layers are inserted below all labels
@@ -102,8 +107,8 @@ const MapPage = () => {
           "fill-color":   buildColorExpr(DEFAULT_WEIGHTS),
           "fill-opacity": [
             "case",
-            ["boolean", ["feature-state", "hover"], false],
-            0.88,
+            ["boolean", ["feature-state", "clicked"], false], 0.95,
+            ["boolean", ["feature-state", "hover"],   false], 0.88,
             0.72,
           ],
         },
@@ -117,6 +122,21 @@ const MapPage = () => {
         paint:  {
           "line-color": "rgba(0, 0, 0, 0.18)",
           "line-width": 0.3,
+        },
+      }, firstSymbolId);
+
+      // ── Clicked block highlight border ───────────────────────────────────
+      map.addLayer({
+        id:     "census-clicked-outline",
+        type:   "line",
+        source: "census-blocks",
+        paint:  {
+          "line-color": [
+            "case",
+            ["boolean", ["feature-state", "clicked"], false], "rgba(255,255,255,0.6)",
+            "transparent",
+          ],
+          "line-width": 1.5,
         },
       }, firstSymbolId);
 
@@ -179,6 +199,32 @@ const MapPage = () => {
         }
       });
 
+      // ── Click handler — opens detail panel ───────────────────────────────
+      map.on("click", "census-heat", (e) => {
+        if (!e.features?.length) return;
+        const feat = e.features[0];
+        const p    = feat.properties as Record<string, number | string>;
+
+        // Clear previous clicked highlight
+        if (clickedIdRef.current !== null)
+          map.setFeatureState({ source: "census-blocks", id: clickedIdRef.current }, { clicked: false });
+
+        clickedIdRef.current = feat.id ?? null;
+        if (clickedIdRef.current !== null)
+          map.setFeatureState({ source: "census-blocks", id: clickedIdRef.current }, { clicked: true });
+
+        const num = (v: unknown) => typeof v === "number" ? v : 0;
+
+        setClickedBlock({
+          geoid:       String(p.GEOID20 ?? ""),
+          walkability: num(p.score_walkability),
+          transit:     num(p.score_transit),
+          vmt:         num(p.score_vmt),
+          employment:  num(p.score_employment),
+          composite:   num(p.composite),
+        });
+      });
+
       // Dismiss loading indicator once GeoJSON data is fully parsed
       map.on("sourcedata", (e) => {
         const evt = e as mapboxgl.MapSourceDataEvent;
@@ -201,6 +247,16 @@ const MapPage = () => {
     if (!map || !mapLoaded || !map.getLayer("census-heat")) return;
     map.setPaintProperty("census-heat", "fill-color", buildColorExpr(weights));
   }, [weights, mapLoaded]);
+
+  // ── Close panel and clear clicked feature-state ───────────────────────────
+  const handleBlockClose = () => {
+    const map = mapRef.current;
+    if (map && clickedIdRef.current !== null && map.getLayer("census-heat")) {
+      map.setFeatureState({ source: "census-blocks", id: clickedIdRef.current }, { clicked: false });
+      clickedIdRef.current = null;
+    }
+    setClickedBlock(null);
+  };
 
   // ── Token guard ───────────────────────────────────────────────────────────
   if (!import.meta.env.VITE_MAPBOX_TOKEN) {
@@ -258,6 +314,18 @@ const MapPage = () => {
       </div>
 
       <FilterSidebar weights={weights} onWeightsChange={setWeights} />
+
+      {/* Census block detail panel */}
+      <AnimatePresence>
+        {clickedBlock && (
+          <CensusBlockPanel
+            key={clickedBlock.geoid}
+            block={clickedBlock}
+            weights={weights}
+            onClose={handleBlockClose}
+          />
+        )}
+      </AnimatePresence>
 
     </div>
   );
