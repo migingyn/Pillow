@@ -128,13 +128,14 @@ const MapPage = () => {
         },
       }, firstSymbolId);
 
-      // ── Boost city label visibility above the thermal fill ───────────────
+      // ── Boost city label visibility; dim street labels ───────────────────
       map.getStyle().layers
         .filter(l => l.type === "symbol")
         .forEach(l => {
-          map.setPaintProperty(l.id, "text-color", "#ffffff");
+          const isRoad = l.id.includes("road") || l.id.includes("street") || l.id.includes("highway");
+          map.setPaintProperty(l.id, "text-color", isRoad ? "rgba(255,255,255,0.3)" : "#ffffff");
           map.setPaintProperty(l.id, "text-halo-color", "rgba(0,0,0,0.85)");
-          map.setPaintProperty(l.id, "text-halo-width", 2);
+          map.setPaintProperty(l.id, "text-halo-width", isRoad ? 0 : 2);
         });
 
       // ── Hover popup ──────────────────────────────────────────────────────
