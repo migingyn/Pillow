@@ -27,6 +27,8 @@ const FilterSidebar = ({
   const [openDropdown, setOpenDropdown] = useState<
     null | "affordability" | "environmental" | "livability"
   >(null);
+  const [hoveredEnvKey, setHoveredEnvKey] = useState<string | null>(null);
+  const [hoveredLivKey, setHoveredLivKey] = useState<string | null>(null);
 
   const factors = useMemo(() => Object.keys(FACTOR_LABELS) as ScoreFactor[], []);
 
@@ -325,28 +327,43 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                       <div className="flex flex-wrap gap-2">
                         {(
                           [
-                            ["floodRisk", "Flood risk"],
-                            ["earthquakeRisk", "Earthquake risk"],
-                            ["wildfireRisk", "Wildfire risk"],
-                            ["airQuality", "Air quality"],
-                            ["noise", "Noise"],
+                            ["floodRisk",      "Flood safety",      "Lower flood exposure"],
+                            ["earthquakeRisk",  "Earthquake safety", "Lower seismic hazard"],
+                            ["wildfireRisk",    "Wildfire safety",   "Lower fire risk"],
+                            ["airQuality",      "Air quality",       "Cleaner air index"],
                           ] as const
-                        ).map(([key, label]) => {
+                        ).map(([key, label, description]) => {
                           const on = selections.environmental[key];
                           return (
-                            <button
-                              key={key}
-                              type="button"
-                              onClick={() => toggleSelection("environmental", key)}
-                              className={
-                                "px-2 py-1 rounded border text-[10px] font-mono tracking-wide " +
-                                (on
-                                  ? "border-primary/40 text-primary bg-primary/10"
-                                  : "border-border text-muted-foreground hover:text-foreground")
-                              }
-                            >
-                              {label}
-                            </button>
+                            <div key={key} className="relative">
+                              <button
+                                type="button"
+                                onClick={() => toggleSelection("environmental", key)}
+                                onMouseEnter={() => setHoveredEnvKey(key)}
+                                onMouseLeave={() => setHoveredEnvKey(null)}
+                                className={
+                                  "px-2 py-1 rounded border text-[10px] font-mono tracking-wide " +
+                                  (on
+                                    ? "border-primary/40 text-primary bg-primary/10"
+                                    : "border-border text-muted-foreground hover:text-foreground")
+                                }
+                              >
+                                {label}
+                              </button>
+                              <AnimatePresence>
+                                {hoveredEnvKey === key && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 4 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="absolute bottom-full left-0 mb-1.5 w-max rounded border border-border bg-background/95 backdrop-blur-md px-2 py-1 text-[9px] font-mono text-muted-foreground shadow-lg z-10 pointer-events-none"
+                                  >
+                                    {description}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
                           );
                         })}
                       </div>
@@ -412,34 +429,45 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                       <div className="flex flex-wrap gap-2">
                         {(
                           [
-                            ["walkability", "Walkability"],
-                            ["transit", "Transit"],
-                            ["jobOpenings", "Job openings"],
+                            ["walkability", "Walkability",   "Walkable streets nearby",           false],
+                            ["transit",     "Commutability", "Transit access near workplaces",     false],
+                            ["jobOpenings", "Job openings",  "",                                   true],
                           ] as const
-                        ).map(([key, label]) => {
+                        ).map(([key, label, description, disabled]) => {
                           const on = selections.livability[key];
-                          const disabled = key === "jobOpenings";
                           return (
-                            <button
-                              key={key}
-                              type="button"
-                              onClick={() => {
-                                if (disabled) return;
-                                toggleSelection("livability", key);
-                              }}
-                              className={
-                                "px-2 py-1 rounded border text-[10px] font-mono tracking-wide " +
-                                (disabled
-                                  ? "border-border text-muted-foreground/50 cursor-not-allowed"
-                                  : on
-                                  ? "border-primary/40 text-primary bg-primary/10"
-                                  : "border-border text-muted-foreground hover:text-foreground")
-                              }
-                              title={disabled ? "Coming soon" : undefined}
-                            >
-                              {label}
-                              {disabled ? " (soon)" : ""}
-                            </button>
+                            <div key={key} className="relative">
+                              <button
+                                type="button"
+                                onClick={() => { if (!disabled) toggleSelection("livability", key); }}
+                                onMouseEnter={() => { if (!disabled) setHoveredLivKey(key); }}
+                                onMouseLeave={() => setHoveredLivKey(null)}
+                                className={
+                                  "px-2 py-1 rounded border text-[10px] font-mono tracking-wide " +
+                                  (disabled
+                                    ? "border-border text-muted-foreground/50 cursor-not-allowed"
+                                    : on
+                                    ? "border-primary/40 text-primary bg-primary/10"
+                                    : "border-border text-muted-foreground hover:text-foreground")
+                                }
+                                title={disabled ? "Coming soon" : undefined}
+                              >
+                                {label}{disabled ? " (soon)" : ""}
+                              </button>
+                              <AnimatePresence>
+                                {hoveredLivKey === key && description && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 4 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="absolute bottom-full left-0 mb-1.5 w-max rounded border border-border bg-background/95 backdrop-blur-md px-2 py-1 text-[9px] font-mono text-muted-foreground shadow-lg z-10 pointer-events-none"
+                                  >
+                                    {description}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
                           );
                         })}
                       </div>
