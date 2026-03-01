@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { X, TrendingUp, TrendingDown, Sparkles, Crosshair } from "lucide-react";
-import { Weights } from "@/data/neighborhoods";
+import { Weights, FactorSelections } from "@/data/neighborhoods";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 export interface CensusBlockData {
@@ -11,11 +11,17 @@ export interface CensusBlockData {
   vmt: number;         // 0–1, higher = less car-dependent
   employment: number;  // 0–1
   composite: number;   // 0–1 pre-computed
+  price: number;       // 0–1, affordability (higher = more affordable)
+  floodSafe: number;   // 0–1, inverted flood risk (higher = safer)
+  quakeSafe: number;   // 0–1, inverted earthquake risk
+  fireSafe: number;    // 0–1, inverted wildfire risk
+  airSafe: number;     // 0–1, inverted air quality composite (higher = cleaner)
 }
 
 interface Props {
   block: CensusBlockData;
   weights: Weights;
+  selections: FactorSelections;
   onClose: () => void;
 }
 
@@ -25,6 +31,11 @@ const FACTORS = [
   { key: "transit"     as const, label: "Transit Access" },
   { key: "vmt"         as const, label: "Low Car Dependency" },
   { key: "employment"  as const, label: "Employment Proximity" },
+  { key: "price"       as const, label: "Affordability" },
+  { key: "floodSafe"   as const, label: "Flood Safety" },
+  { key: "quakeSafe"   as const, label: "Seismic Safety" },
+  { key: "fireSafe"    as const, label: "Wildfire Safety" },
+  { key: "airSafe"     as const, label: "Air Quality" },
 ] as const;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -43,15 +54,35 @@ const getBarGradient = (score: number) => {
 };
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
-const CensusBlockPanel = ({ block, weights, onClose }: Props) => {
-  // Weighted score using same formula as buildColorExpr
-  const wWalk    = weights.walkability / 5;
-  const wTransit = weights.transit     / 5;
-  const wTraffic = weights.traffic     / 5;
-  const denom    = wWalk + wTransit + wTraffic;
+const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
+  // Weighted score matching buildColorExpr in MapPage
+  const wPrice   = weights.price / 5;
+  const wWalk    = selections.livability.walkability ? weights.walkability / 5 : 0;
+  const wTransit = selections.livability.transit     ? weights.transit     / 5 : 0;
+  const wTraffic = weights.traffic / 5;
+
+  const envTotal = weights.environmentalRisks / 5;
+  const { floodRisk, earthquakeRisk, wildfireRisk, airQuality } = selections.environmental;
+  const envCount  = [floodRisk, earthquakeRisk, wildfireRisk, airQuality].filter(Boolean).length || 1;
+  const wFlood    = floodRisk      ? envTotal / envCount : 0;
+  const wQuake    = earthquakeRisk ? envTotal / envCount : 0;
+  const wFire     = wildfireRisk   ? envTotal / envCount : 0;
+  const wAir      = airQuality     ? envTotal / envCount : 0;
+  const actualEnv = wFlood + wQuake + wFire + wAir;
+
+  const denom = wPrice + wWalk + wTransit + wTraffic + actualEnv;
   const rawScore = denom === 0
     ? block.composite
-    : (wWalk * block.walkability + wTransit * block.transit + wTraffic * block.vmt) / denom;
+    : (
+        wPrice   * block.price     +
+        wWalk    * block.walkability +
+        wTransit * block.transit   +
+        wTraffic * block.vmt       +
+        wFlood   * block.floodSafe +
+        wQuake   * block.quakeSafe +
+        wFire    * block.fireSafe  +
+        wAir     * block.airSafe
+      ) / denom;
   const pillowIndex = Math.round(rawScore * 100);
 
   const scores = {
@@ -59,6 +90,11 @@ const CensusBlockPanel = ({ block, weights, onClose }: Props) => {
     transit:     Math.round(block.transit     * 100),
     vmt:         Math.round(block.vmt         * 100),
     employment:  Math.round(block.employment  * 100),
+    price:       Math.round(block.price       * 100),
+    floodSafe:   Math.round(block.floodSafe   * 100),
+    quakeSafe:   Math.round(block.quakeSafe   * 100),
+    fireSafe:    Math.round(block.fireSafe    * 100),
+    airSafe:     Math.round(block.airSafe     * 100),
   };
 
   const sorted    = FACTORS.map(f => ({ ...f, score: scores[f.key] })).sort((a, b) => b.score - a.score);
@@ -94,7 +130,12 @@ const CensusBlockPanel = ({ block, weights, onClose }: Props) => {
             `Walkability: ${scores.walkability}/100\n` +
             `Transit Access: ${scores.transit}/100\n` +
             `Low Car Dependency: ${scores.vmt}/100\n` +
-            `Employment Proximity: ${scores.employment}/100`,
+            `Employment Proximity: ${scores.employment}/100\n` +
+            `Affordability: ${scores.price}/100\n` +
+            `Flood Safety: ${scores.floodSafe}/100\n` +
+            `Seismic Safety: ${scores.quakeSafe}/100\n` +
+            `Wildfire Safety: ${scores.fireSafe}/100\n` +
+            `Air Quality: ${scores.airSafe}/100`,
         }],
       }),
     })
@@ -208,7 +249,7 @@ const CensusBlockPanel = ({ block, weights, onClose }: Props) => {
         {/* Data source note */}
         <div className="mt-6 p-3 rounded bg-muted/30 border border-border">
           <p className="text-[10px] font-mono text-muted-foreground leading-relaxed">
-            EPA Smart Location Database · GTFS transit feeds · LEHD employment data
+            EPA Smart Location Database · GTFS transit feeds · LEHD employment data · HUD affordability · FEMA NRI · CalEnviroScreen
           </p>
         </div>
 
