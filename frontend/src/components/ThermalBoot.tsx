@@ -165,8 +165,8 @@ const ThermalBoot = ({ onDone }: Props) => {
           >
             <Crosshair className="h-9 w-9 text-primary" />
           </div>
-          <span className="font-mono font-bold text-primary text-3xl tracking-[0.55em] neon-text">
-            PILLOW
+          <span className="font-mono font-bold text-primary text-3xl tracking-[0.55em] pl-[0.55em] neon-text">
+            LOCUS
           </span>
         </motion.div>
       </div>

@@ -132,7 +132,7 @@ const Landing = () => {
           <div className="h-8 w-8 rounded bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
             <Crosshair className="h-4 w-4 text-primary" />
           </div>
-          <span className="font-mono font-bold text-primary tracking-widest neon-text">PILLOW</span>
+          <span className="font-mono font-bold text-primary tracking-widest neon-text">LOCUS</span>
         </div>
         <div className="flex items-center gap-3 sm:gap-6">
           <button
@@ -351,7 +351,7 @@ const Landing = () => {
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <footer className="relative z-10 border-t border-border py-6 px-4 sm:px-6">
         <p className="text-[9px] font-mono text-muted-foreground/40 text-center tracking-widest uppercase">
-          PILLOW · Decision-support only · Verify with official sources
+          LOCUS · Decision-support only · Verify with official sources
         </p>
       </footer>
 

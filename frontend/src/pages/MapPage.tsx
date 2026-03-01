@@ -514,7 +514,7 @@ const MapPage = () => {
           <div className="h-7 w-7 rounded bg-primary/10 border border-primary/30 flex items-center justify-center">
             <Crosshair className="h-3.5 w-3.5 text-primary" />
           </div>
-          <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">PILLOW</span>
+          <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">LOCUS</span>
         </button>
         <div className="flex-1 relative">
           <input
