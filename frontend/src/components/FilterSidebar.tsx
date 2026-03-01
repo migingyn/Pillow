@@ -196,6 +196,54 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
 
               <div className="h-px bg-border mb-4" />
 
+              {/* NL Query */}
+              <div className="mb-5">
+                <p className="text-[9px] font-mono text-primary/60 mb-2 tracking-widest uppercase">
+                  Natural Language
+                </p>
+                <p className="text-[10px] font-mono text-muted-foreground mb-3 leading-relaxed">
+                  Describe what matters to you and we'll set the weights.
+                </p>
+                <div className="flex gap-2">
+                  <textarea
+                    rows={2}
+                    value={nlQuery}
+                    onChange={(e) => setNlQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleNlSubmit();
+                      }
+                    }}
+                    placeholder="e.g. I want walkable, quiet streets with good air quality"
+                    className="flex-1 resize-none text-[10px] font-mono bg-muted/40 border border-border rounded px-2 py-1.5 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/40 leading-relaxed"
+                  />
+                  <button
+                    onClick={handleNlSubmit}
+                    disabled={nlLoading || !nlQuery.trim()}
+                    className="self-end h-10 w-10 sm:h-8 sm:w-8 rounded border border-border flex items-center justify-center hover:border-primary/40 disabled:opacity-30 transition-colors shrink-0"
+                    aria-label="Submit query"
+                  >
+                    {nlLoading ? (
+                      <motion.div
+                        className="h-3 w-3 rounded-full border border-primary border-t-transparent"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                      />
+                    ) : (
+                      <Send className="h-3 w-3 text-primary" />
+                    )}
+                  </button>
+                </div>
+                {nlFeedback && (
+                  <p className="mt-2 text-[10px] font-mono text-primary/70 leading-relaxed">
+                    {nlFeedback}
+                  </p>
+                )}
+              </div>
+
+              <div className="h-px bg-border mb-4" />
+
               {/* Primary Sliders */}
               <div className="space-y-5">
                 {/* Affordability */}
@@ -229,10 +277,6 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                     <span>OFF</span>
                     <span>MAX</span>
                   </div>
-
-                  <p className="mt-1 text-[9px] font-mono text-muted-foreground tracking-wide">
-                    Controls {groupedFactors.affordability.length} underlying factor{groupedFactors.affordability.length === 1 ? "" : "s"}
-                  </p>
                 </div>
 
                 {/* Environmental */}
@@ -335,7 +379,7 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                   )}
 
                   <p className="mt-1 text-[9px] font-mono text-muted-foreground tracking-wide">
-                    Controls {groupedFactors.environmental.length} underlying factor{groupedFactors.environmental.length === 1 ? "" : "s"}
+                    Controls 4 underlying factor{groupedFactors.environmental.length === 1 ? "" : "s"}
                   </p>
                 </div>
 
@@ -439,7 +483,7 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                   )}
 
                   <p className="mt-1 text-[9px] font-mono text-muted-foreground tracking-wide">
-                    Controls {groupedFactors.livability.length} underlying factor{groupedFactors.livability.length === 1 ? "" : "s"}
+                    Controls 2 underlying factor{groupedFactors.livability.length === 1 ? "" : "s"}
                   </p>
                 </div>
               </div>
@@ -452,53 +496,6 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                 <RotateCcw className="h-3 w-3" />
                 Reset defaults
               </button>
-
-              {/* NL Query */}
-              <div className="mt-5">
-                <div className="h-px bg-border mb-4" />
-                <p className="text-[9px] font-mono text-primary/60 mb-2 tracking-widest uppercase">
-                  Natural Language
-                </p>
-                <p className="text-[10px] font-mono text-muted-foreground mb-3 leading-relaxed">
-                  Describe what matters to you and we'll set the weights.
-                </p>
-                <div className="flex gap-2">
-                  <textarea
-                    rows={2}
-                    value={nlQuery}
-                    onChange={(e) => setNlQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleNlSubmit();
-                      }
-                    }}
-                    placeholder="e.g. I want walkable, quiet streets with good air quality"
-                    className="flex-1 resize-none text-[10px] font-mono bg-muted/40 border border-border rounded px-2 py-1.5 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/40 leading-relaxed"
-                  />
-                  <button
-                    onClick={handleNlSubmit}
-                    disabled={nlLoading || !nlQuery.trim()}
-                    className="self-end h-10 w-10 sm:h-8 sm:w-8 rounded border border-border flex items-center justify-center hover:border-primary/40 disabled:opacity-30 transition-colors shrink-0"
-                    aria-label="Submit query"
-                  >
-                    {nlLoading ? (
-                      <motion.div
-                        className="h-3 w-3 rounded-full border border-primary border-t-transparent"
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                      />
-                    ) : (
-                      <Send className="h-3 w-3 text-primary" />
-                    )}
-                  </button>
-                </div>
-                {nlFeedback && (
-                  <p className="mt-2 text-[10px] font-mono text-primary/70 leading-relaxed">
-                    {nlFeedback}
-                  </p>
-                )}
-              </div>
 
               {/* Match Legend */}
               <div className="mt-6 p-3 rounded bg-muted/50 border border-border">

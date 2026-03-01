@@ -381,13 +381,14 @@ const MapPage = () => {
           walkability:  num(p.score_walkability),
           transit:      num(p.score_transit),
           vmt:          num(p.score_vmt),
-
           composite:    num(p.composite),
           price:        numDef(p.score_price),
           floodSafe:    numDef(p.score_flood_safe),
           quakeSafe:    numDef(p.score_quake_safe),
           fireSafe:     numDef(p.score_wildfire_safe),
           airSafe:      numDef(p.score_air_safe),
+          lat:          e.lngLat.lat,
+          lng:          e.lngLat.lng,
         });
       });
 
@@ -468,6 +469,8 @@ const MapPage = () => {
         quakeSafe:    numDef(p.score_quake_safe),
         fireSafe:     numDef(p.score_wildfire_safe),
         airSafe:      numDef(p.score_air_safe),
+        lat:          center[1],
+        lng:          center[0],
       });
     });
   };

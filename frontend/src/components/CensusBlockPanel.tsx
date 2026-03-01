@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { X, TrendingUp, TrendingDown, Sparkles, Crosshair } from "lucide-react";
+import { X, TrendingUp, TrendingDown, Sparkles, Crosshair, ExternalLink } from "lucide-react";
 import { Weights, FactorSelections } from "@/data/neighborhoods";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
@@ -15,6 +15,8 @@ export interface CensusBlockData {
   quakeSafe: number;   // 0–1, inverted earthquake risk
   fireSafe: number;    // 0–1, inverted wildfire risk
   airSafe: number;     // 0–1, inverted air quality composite (higher = cleaner)
+  lat: number;         // click latitude
+  lng: number;         // click longitude
 }
 
 interface Props {
@@ -98,6 +100,22 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
   const strengths = sorted.filter(f => f.score >= 60).slice(0, 3);
   const risks     = sorted.filter(f => f.score <  50).slice(0, 3);
   const thermal   = getThermalLabel(pillowIndex);
+
+  // Reverse-geocode lat/lng → zip code for listing site links
+  const [zip, setZip] = useState<string | null>(null);
+  useEffect(() => {
+    setZip(null);
+    const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
+    if (!token) return;
+    fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${block.lng},${block.lat}.json?access_token=${token}&types=postcode&limit=1`
+    )
+      .then(r => r.json())
+      .then((data: { features?: { text?: string }[] }) => {
+        setZip(data.features?.[0]?.text ?? null);
+      })
+      .catch(() => {});
+  }, [block.geoid]);
 
   // AI analysis
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -202,6 +220,33 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
 
         <div className="h-px bg-border mb-4" />
 
+        {/* Listing site links */}
+        <h3 className="text-[10px] font-mono font-bold text-primary/70 mb-3 tracking-widest uppercase">Browse Listings</h3>
+        {zip ? (
+          <div className="flex flex-col gap-2">
+            {([
+              { name: "Zillow",      href: `https://www.zillow.com/homes/${zip}_rb/` },
+              { name: "Redfin",      href: `https://www.redfin.com/zipcode/${zip}/` },
+              { name: "Realtor.com", href: `https://www.realtor.com/realestateandhomes-search/${zip}/` },
+            ] as const).map(({ name, href }) => (
+              <a
+                key={name}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between px-3 py-2 rounded border border-border text-[10px] font-mono text-foreground/80 hover:border-primary/40 hover:text-primary transition-colors tracking-wide"
+              >
+                <span>{name} <span className="text-muted-foreground">· {zip}</span></span>
+                <ExternalLink className="h-3 w-3 opacity-60" />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[10px] font-mono text-muted-foreground tracking-wide">Locating area…</p>
+        )}
+
+        <div className="h-px bg-border mt-4 mb-4" />
+
         {/* Strengths */}
         {strengths.length > 0 && (
           <div className="mb-4">
@@ -257,7 +302,7 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
         </div>
 
         {/* Data source note */}
-        <div className="mt-6 p-3 rounded bg-muted/30 border border-border">
+        <div className="mt-4 p-3 rounded bg-muted/30 border border-border">
           <p className="text-[10px] font-mono text-muted-foreground leading-relaxed">
             EPA Smart Location Database · GTFS transit feeds · LEHD employment data · HUD affordability · FEMA NRI · CalEnviroScreen
           </p>
