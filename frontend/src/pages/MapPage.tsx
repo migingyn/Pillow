@@ -214,7 +214,9 @@ const MapPage = () => {
           <div className="h-7 w-7 rounded bg-primary/10 border border-primary/30 flex items-center justify-center">
             <Crosshair className="h-3.5 w-3.5 text-primary" />
           </div>
-          <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">PILLOW</span>
+          <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">
+            PILLOW
+          </span>
         </button>
         <div className="flex-1">
           <input
@@ -243,12 +245,17 @@ const MapPage = () => {
         <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">Thermal Index</p>
         <div className="thermal-gradient-bar h-2.5 w-32 sm:w-40 rounded-sm" />
         <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
-          <span>COLD</span>
-          <span>HOT</span>
+          <span>GREEN / BEST</span>
+          <span>RED / WORST</span>
         </div>
       </div>
 
-      <FilterSidebar weights={weights} onWeightsChange={setWeights} />
+      <FilterSidebar
+        weights={weights}
+        onWeightsChange={setWeights}
+        selections={selections}
+        onSelectionsChange={setSelections}
+      />
 
     </div>
   );
