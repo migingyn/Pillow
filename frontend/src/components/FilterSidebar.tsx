@@ -1,13 +1,22 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crosshair, RotateCcw, ChevronLeft, SlidersHorizontal, Send } from "lucide-react";
 import {
   Weights,
   DEFAULT_WEIGHTS,
-  FACTOR_LABELS,
   ScoreFactor,
   FactorSelections,
 } from "@/data/neighborhoods";
+
+// Explicit semantic grouping: each UI slider controls only these weight keys.
+// Affordability  → price only
+// Environmental  → environmentalRisks only (sub-factors split via selections)
+// Livability     → walkability + transit + traffic (sub-factors split via selections)
+const GROUPED_FACTORS: Record<"affordability" | "environmental" | "livability", ScoreFactor[]> = {
+  affordability: ["price"],
+  environmental: ["environmentalRisks"],
+  livability:    ["walkability", "transit", "traffic"],
+};
 
 interface FilterSidebarProps {
   weights: Weights;
@@ -30,19 +39,7 @@ const FilterSidebar = ({
   const [hoveredEnvKey, setHoveredEnvKey] = useState<string | null>(null);
   const [hoveredLivKey, setHoveredLivKey] = useState<string | null>(null);
 
-  const factors = useMemo(() => Object.keys(FACTOR_LABELS) as ScoreFactor[], []);
-
-  // Group factors into 3 buckets based on their order in FACTOR_LABELS.
-  // If you want different grouping, reorder FACTOR_LABELS in `@/data/neighborhoods`.
-  const groupedFactors = useMemo(() => {
-    const total = factors.length;
-    const size = Math.ceil(total / 3);
-    return {
-      affordability: factors.slice(0, size),
-      environmental: factors.slice(size, size * 2),
-      livability: factors.slice(size * 2),
-    };
-  }, [factors]);
+  const groupedFactors = GROUPED_FACTORS;
 
   const getGroupValue = (group: ScoreFactor[]) => {
     if (!group.length) return 0;
@@ -274,7 +271,7 @@ Use 0 if a factor is irrelevant, 1–2 for minor importance, 3 for moderate, 4�
                   )}
 
                   <p className="mt-1 text-[9px] font-mono text-muted-foreground tracking-wide">
-                    Controls {groupedFactors.affordability.length} underlying factors
+                    Controls {groupedFactors.affordability.length} underlying factor{groupedFactors.affordability.length === 1 ? "" : "s"}
                   </p>
                 </div>
 
@@ -378,7 +375,7 @@ Use 0 if a factor is irrelevant, 1–2 for minor importance, 3 for moderate, 4�
                   )}
 
                   <p className="mt-1 text-[9px] font-mono text-muted-foreground tracking-wide">
-                    Controls {groupedFactors.environmental.length} underlying factors
+                    Controls {groupedFactors.environmental.length} underlying factor{groupedFactors.environmental.length === 1 ? "" : "s"}
                   </p>
                 </div>
 
@@ -482,7 +479,7 @@ Use 0 if a factor is irrelevant, 1–2 for minor importance, 3 for moderate, 4�
                   )}
 
                   <p className="mt-1 text-[9px] font-mono text-muted-foreground tracking-wide">
-                    Controls {groupedFactors.livability.length} underlying factors
+                    Controls {groupedFactors.livability.length} underlying factor{groupedFactors.livability.length === 1 ? "" : "s"}
                   </p>
                 </div>
               </div>

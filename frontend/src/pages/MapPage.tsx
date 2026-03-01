@@ -101,9 +101,15 @@ const MapPage = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const clickedIdRef    = useRef<string | number | null>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const weightsRef    = useRef<Weights>({ ...DEFAULT_WEIGHTS });
+  const selectionsRef = useRef<FactorSelections>({ ...DEFAULT_SELECTIONS });
 
   const [weights, setWeights]         = useState<Weights>({ ...DEFAULT_WEIGHTS });
   const [selections, setSelections]   = useState<FactorSelections>({ ...DEFAULT_SELECTIONS });
+
+  // Keep refs in sync so map event handler closures always see current values
+  weightsRef.current    = weights;
+  selectionsRef.current = selections;
   const [mapLoaded, setMapLoaded]     = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [clickedBlock, setClickedBlock] = useState<CensusBlockData | null>(null);
@@ -279,8 +285,33 @@ const MapPage = () => {
         if (hoveredId !== null)
           map.setFeatureState({ source: "census-blocks", id: hoveredId }, { hover: true });
 
-        const pct = (v: unknown) =>
-          typeof v === "number" ? (v * 100).toFixed(0) : "–";
+        const n = (v: unknown, def = 0.5) => {
+          if (typeof v === "number") return v;
+          if (typeof v === "string") { const x = parseFloat(v); return isNaN(x) ? def : x; }
+          return def;
+        };
+        const pct = (v: number) => (v * 100).toFixed(0);
+
+        // Compute weighted composite using current weight state via refs
+        const w = weightsRef.current;
+        const s = selectionsRef.current;
+        const wP  = w.price / 5;
+        const wWk = s.livability.walkability ? w.walkability / 5 : 0;
+        const wTr = s.livability.transit     ? w.transit     / 5 : 0;
+        const wTf = w.traffic / 5;
+        const envTotal = w.environmentalRisks / 5;
+        const { floodRisk, earthquakeRisk, wildfireRisk, airQuality } = s.environmental;
+        const envCount = [floodRisk, earthquakeRisk, wildfireRisk, airQuality].filter(Boolean).length || 1;
+        const wFl = floodRisk      ? envTotal / envCount : 0;
+        const wQk = earthquakeRisk ? envTotal / envCount : 0;
+        const wFr = wildfireRisk   ? envTotal / envCount : 0;
+        const wAr = airQuality     ? envTotal / envCount : 0;
+        const dyn_denom = wP + wWk + wTr + wTf + wFl + wQk + wFr + wAr;
+        const dynamicComposite = dyn_denom === 0
+          ? n(p.composite)
+          : (wP * n(p.score_price) + wWk * n(p.score_walkability) + wTr * n(p.score_transit) +
+             wTf * n(p.score_vmt)  + wFl * n(p.score_flood_safe)  + wQk * n(p.score_quake_safe) +
+             wFr * n(p.score_wildfire_safe) + wAr * n(p.score_air_safe)) / dyn_denom;
 
         popup
           .setLngLat(e.lngLat)
@@ -288,9 +319,10 @@ const MapPage = () => {
             <div style="line-height:1.7">
               <div style="color:rgba(0,255,0,0.45);font-size:9px;letter-spacing:.12em;margin-bottom:3px">CENSUS BLOCK</div>
               <div style="font-size:9px;opacity:.5;margin-bottom:5px">${p.GEOID20 ?? "–"}</div>
-              <div>COMPOSITE&nbsp;<span style="color:#FFD700;font-weight:600">${pct(p.composite)}</span>&nbsp;·&nbsp;AFFORD&nbsp;<span style="color:#aaffaa">${pct(p.score_price)}</span></div>
-              <div style="opacity:.75">WALK&nbsp;<span style="color:#aaffaa">${pct(p.score_walkability)}</span>&nbsp;·&nbsp;TRANSIT&nbsp;<span style="color:#aaffaa">${pct(p.score_transit)}</span>&nbsp;·&nbsp;VMT&nbsp;<span style="color:#aaffaa">${pct(p.score_vmt)}</span></div>
-              <div style="opacity:.75">FLOOD&nbsp;<span style="color:#aaffaa">${pct(p.score_flood_safe)}</span>&nbsp;·&nbsp;QUAKE&nbsp;<span style="color:#aaffaa">${pct(p.score_quake_safe)}</span>&nbsp;·&nbsp;FIRE&nbsp;<span style="color:#aaffaa">${pct(p.score_wildfire_safe)}</span>&nbsp;·&nbsp;AIR&nbsp;<span style="color:#aaffaa">${pct(p.score_air_safe)}</span></div>
+              <div>COMPOSITE&nbsp;<span style="color:#FFD700;font-weight:600">${pct(dynamicComposite)}</span>&nbsp;·&nbsp;AFFORD&nbsp;<span style="color:#aaffaa">${pct(n(p.score_price))}</span></div>
+              <div style="opacity:.75">WALK&nbsp;<span style="color:#aaffaa">${pct(n(p.score_walkability))}</span>&nbsp;·&nbsp;TRANSIT&nbsp;<span style="color:#aaffaa">${pct(n(p.score_transit))}</span>&nbsp;·&nbsp;VMT&nbsp;<span style="color:#aaffaa">${pct(n(p.score_vmt))}</span></div>
+              <div style="opacity:.75">FLOOD&nbsp;<span style="color:#aaffaa">${pct(n(p.score_flood_safe))}</span>&nbsp;·&nbsp;QUAKE&nbsp;<span style="color:#aaffaa">${pct(n(p.score_quake_safe))}</span></div>
+              <div style="opacity:.75">FIRE&nbsp;<span style="color:#aaffaa">${pct(n(p.score_wildfire_safe))}</span>&nbsp;·&nbsp;AIR&nbsp;<span style="color:#aaffaa">${pct(n(p.score_air_safe))}</span></div>
             </div>
           `)
           .addTo(map);
@@ -327,7 +359,7 @@ const MapPage = () => {
           walkability:  num(p.score_walkability),
           transit:      num(p.score_transit),
           vmt:          num(p.score_vmt),
-          employment:   num(p.score_employment),
+
           composite:    num(p.composite),
           price:        numDef(p.score_price),
           floodSafe:    numDef(p.score_flood_safe),
@@ -408,7 +440,6 @@ const MapPage = () => {
         walkability:  num(p.score_walkability),
         transit:      num(p.score_transit),
         vmt:          num(p.score_vmt),
-        employment:   num(p.score_employment),
         composite:    num(p.composite),
         price:        numDef(p.score_price),
         floodSafe:    numDef(p.score_flood_safe),

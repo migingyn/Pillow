@@ -9,7 +9,6 @@ export interface CensusBlockData {
   walkability: number; // 0–1, higher = better
   transit: number;     // 0–1
   vmt: number;         // 0–1, higher = less car-dependent
-  employment: number;  // 0–1
   composite: number;   // 0–1 pre-computed
   price: number;       // 0–1, affordability (higher = more affordable)
   floodSafe: number;   // 0–1, inverted flood risk (higher = safer)
@@ -30,7 +29,6 @@ const FACTORS = [
   { key: "walkability" as const, label: "Walkability" },
   { key: "transit"     as const, label: "Transit Access" },
   { key: "vmt"         as const, label: "Low Car Dependency" },
-  { key: "employment"  as const, label: "Employment Proximity" },
   { key: "price"       as const, label: "Affordability" },
   { key: "floodSafe"   as const, label: "Flood Safety" },
   { key: "quakeSafe"   as const, label: "Seismic Safety" },
@@ -89,7 +87,6 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
     walkability: Math.round(block.walkability * 100),
     transit:     Math.round(block.transit     * 100),
     vmt:         Math.round(block.vmt         * 100),
-    employment:  Math.round(block.employment  * 100),
     price:       Math.round(block.price       * 100),
     floodSafe:   Math.round(block.floodSafe   * 100),
     quakeSafe:   Math.round(block.quakeSafe   * 100),
@@ -130,7 +127,6 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
             `Walkability: ${scores.walkability}/100\n` +
             `Transit Access: ${scores.transit}/100\n` +
             `Low Car Dependency: ${scores.vmt}/100\n` +
-            `Employment Proximity: ${scores.employment}/100\n` +
             `Affordability: ${scores.price}/100\n` +
             `Flood Safety: ${scores.floodSafe}/100\n` +
             `Seismic Safety: ${scores.quakeSafe}/100\n` +
@@ -182,11 +178,25 @@ const CensusBlockPanel = ({ block, weights, selections, onClose }: Props) => {
 
         {/* Score badge */}
         <div className="flex items-center gap-3 mb-1">
-          <span className="text-3xl font-mono font-bold text-foreground">{pillowIndex}</span>
+          <motion.span
+            key={pillowIndex}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="text-3xl font-mono font-bold text-foreground"
+          >
+            {pillowIndex}
+          </motion.span>
           <span className="text-sm font-mono text-muted-foreground">/100</span>
-          <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border tracking-widest ${thermal.cls}`}>
+          <motion.span
+            key={thermal.text}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold border tracking-widest ${thermal.cls}`}
+          >
             {thermal.text}
-          </span>
+          </motion.span>
         </div>
         <p className="text-[9px] font-mono text-muted-foreground mb-5 tracking-wide">Based on current scan parameters</p>
 
