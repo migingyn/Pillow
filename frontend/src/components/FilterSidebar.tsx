@@ -25,8 +25,7 @@ const FilterSidebar = ({
   // Start closed on mobile (< 640px), open on desktop
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 640);
   const [openDropdown, setOpenDropdown] = useState<
-    null | "affordability" | "environmental" | "livability"
-  >(null);
+  const [openDropdown, setOpenDropdown] = useState<null | "environmental" | "livability">(null);
   const [hoveredEnvKey, setHoveredEnvKey] = useState<string | null>(null);
   const [hoveredLivKey, setHoveredLivKey] = useState<string | null>(null);
 
@@ -210,15 +209,6 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                       <span className="text-[11px] font-mono font-medium text-foreground tracking-wide uppercase">
                         Affordability
                       </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setOpenDropdown(openDropdown === "affordability" ? null : "affordability")
-                        }
-                        className="px-2 py-0.5 rounded border border-border text-[9px] font-mono text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors tracking-widest uppercase"
-                      >
-                        Factors â–¾
-                      </button>
                     </div>
                     <span className="text-[10px] font-mono text-primary font-bold">
                       {getGroupValue(groupedFactors.affordability)}/5
@@ -243,35 +233,6 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                     <span>OFF</span>
                     <span>MAX</span>
                   </div>
-
-                  {openDropdown === "affordability" && (
-                    <div className="mt-2 rounded border border-border bg-background/70 p-2">
-                      <p className="text-[9px] font-mono text-muted-foreground tracking-wider uppercase mb-2">
-                        Include in scoring
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => toggleSelection("affordability", "trueCost")}
-                          className={
-                            "px-2 py-1 rounded border text-[10px] font-mono tracking-wide " +
-                            (selections.affordability.trueCost
-                              ? "border-primary/40 text-primary bg-primary/10"
-                              : "border-border text-muted-foreground hover:text-foreground")
-                          }
-                        >
-                          True cost
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={closeDropdown}
-                        className="mt-2 text-[9px] font-mono text-muted-foreground hover:text-primary tracking-widest uppercase"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  )}
 
                   <p className="mt-1 text-[9px] font-mono text-muted-foreground tracking-wide">
                     Controls {groupedFactors.affordability.length} underlying factors
@@ -550,9 +511,9 @@ Use 0 if a factor is irrelevant, 1â€“2 for minor importance, 3 for moderate, 4â€
                 </p>
                 <div className="thermal-gradient-bar h-2.5 rounded-sm" />
                 <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
-                  <span>GREEN / BEST</span>
-                  <span>YELLOW</span>
-                  <span>RED / WORST</span>
+                  <span>WORST</span>
+                  <span>AVERAGAE</span>
+                  <span>BEST</span>
                 </div>
               </div>
             </div>
