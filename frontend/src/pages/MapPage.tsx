@@ -55,17 +55,32 @@ function buildColorExpr(weights: Weights): ExpressionSpecification {
   ] as ExpressionSpecification;
 }
 
+// ─── GEOCODING ────────────────────────────────────────────────────────────────
+// Bounding box covering Los Angeles County + Orange County
+const LA_OC_BBOX = "-118.95,33.40,-117.40,34.85";
+
+interface GeocodingFeature {
+  id: string;
+  place_name: string;
+  place_type: string[];
+  center: [number, number]; // [lng, lat]
+}
+
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 const MapPage = () => {
   const navigate        = useNavigate();
   const mapRef          = useRef<mapboxgl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const clickedIdRef    = useRef<string | number | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [weights, setWeights]         = useState<Weights>({ ...DEFAULT_WEIGHTS });
   const [mapLoaded, setMapLoaded]     = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [clickedBlock, setClickedBlock] = useState<CensusBlockData | null>(null);
+  const [searchQuery, setSearchQuery]   = useState("");
+  const [suggestions, setSuggestions]   = useState<GeocodingFeature[]>([]);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   // ── Initialize map ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -248,6 +263,70 @@ const MapPage = () => {
     map.setPaintProperty("census-heat", "fill-color", buildColorExpr(weights));
   }, [weights, mapLoaded]);
 
+  // ── Search: debounced Mapbox Geocoding API call ───────────────────────────
+  const handleSearchInput = (q: string) => {
+    setSearchQuery(q);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (q.trim().length < 2) { setSuggestions([]); return; }
+    searchDebounceRef.current = setTimeout(async () => {
+      const token = import.meta.env.VITE_MAPBOX_TOKEN;
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q.trim())}.json?access_token=${token}&bbox=${LA_OC_BBOX}&types=place,neighborhood,locality,postcode&limit=5&country=US`;
+      try {
+        const res  = await fetch(url);
+        const data = await res.json() as { features?: GeocodingFeature[] };
+        setSuggestions(data.features ?? []);
+      } catch { setSuggestions([]); }
+    }, 300);
+  };
+
+  // ── Search: fly to selected result, then auto-open census block panel ─────
+  const handleSearchSelect = (feat: GeocodingFeature) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    setSearchQuery(feat.place_name.split(",")[0]);
+    setSuggestions([]);
+    setSearchFocused(false);
+
+    const center: [number, number] = feat.center;
+    const zoom = feat.place_type.includes("neighborhood") ? 14
+               : feat.place_type.includes("locality")     ? 13
+               : 12;
+
+    map.flyTo({ center, zoom, duration: 1600, essential: true });
+
+    // After the map is fully idle (animation done + tiles rendered), open panel
+    map.once("idle", () => {
+      const point    = map.project(center);
+      const features = map.queryRenderedFeatures(point, { layers: ["census-heat"] });
+      if (!features.length) return;
+
+      const f = features[0];
+      const p = f.properties as Record<string, number | string>;
+      const num = (v: unknown) => typeof v === "number" ? v : 0;
+
+      if (clickedIdRef.current !== null)
+        map.setFeatureState({ source: "census-blocks", id: clickedIdRef.current }, { clicked: false });
+      clickedIdRef.current = f.id ?? null;
+      if (clickedIdRef.current !== null)
+        map.setFeatureState({ source: "census-blocks", id: clickedIdRef.current }, { clicked: true });
+
+      setClickedBlock({
+        geoid:       String(p.GEOID20 ?? ""),
+        walkability: num(p.score_walkability),
+        transit:     num(p.score_transit),
+        vmt:         num(p.score_vmt),
+        employment:  num(p.score_employment),
+        composite:   num(p.composite),
+      });
+    });
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && suggestions.length > 0) handleSearchSelect(suggestions[0]);
+    if (e.key === "Escape") { setSuggestions([]); setSearchFocused(false); }
+  };
+
   // ── Close panel and clear clicked feature-state ───────────────────────────
   const handleBlockClose = () => {
     const map = mapRef.current;
@@ -284,13 +363,30 @@ const MapPage = () => {
           </div>
           <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">PILLOW</span>
         </button>
-        <div className="flex-1">
+        <div className="flex-1 relative">
           <input
             type="text"
+            value={searchQuery}
+            onChange={e => handleSearchInput(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            onKeyDown={handleSearchKeyDown}
             placeholder="SEARCH NEIGHBORHOOD / ZIP ..."
             className="w-full px-3 sm:px-4 py-2 rounded bg-muted border border-border text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-all tracking-wider uppercase"
-            readOnly
           />
+          {searchFocused && suggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 rounded border border-border bg-background/95 backdrop-blur-md overflow-hidden shadow-lg z-10">
+              {suggestions.map(feat => (
+                <button
+                  key={feat.id}
+                  onMouseDown={() => handleSearchSelect(feat)}
+                  className="w-full text-left px-3 py-2.5 text-[11px] font-mono text-foreground/80 hover:bg-primary/10 hover:text-foreground transition-colors border-b border-border/40 last:border-0 tracking-wide"
+                >
+                  {feat.place_name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         {dataLoading && (
           <div className="flex items-center gap-1.5 shrink-0">
