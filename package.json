@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "vite --config frontend/vite.config.ts",
-    "dev:backend": "tsx watch backend/src/server.ts",
+    "dev:backend": "tsx watch --env-file=.env backend/src/server.ts",
     "build": "npm run build:frontend",
     "build:frontend": "vite build --config frontend/vite.config.ts",
     "preview": "vite preview --config frontend/vite.config.ts",

@@ -1,195 +1,74 @@
-import { useEffect, useRef, useMemo, useState } from "react";
-import mapboxgl from "mapbox-gl";
+import { useEffect, useRef, useState } from "react";
+import mapboxgl, { type ExpressionSpecification } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { AnimatePresence } from "framer-motion";
-import { Crosshair } from "lucide-react";
+import { Crosshair, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import FilterSidebar from "@/components/FilterSidebar";
-import AreaDetailPanel from "@/components/AreaDetailPanel";
-import {
-  neighborhoods,
-  neighborhoodByName,
-  NeighborhoodData,
-  Weights,
-  DEFAULT_WEIGHTS,
-  calculatePillowIndex,
-} from "@/data/neighborhoods";
-
-// ─── GeoJSON GEOMETRY ────────────────────────────────────────────────────────
-// Imported as a static module so it's available synchronously at map-load time
-// with no fetch/timing issues. Coordinates are already [lng, lat] (GeoJSON standard).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-import _laGeoJSONRaw from "@/data/la-neighborhoods.json";
-const LA_GEOJSON = _laGeoJSONRaw as unknown as GeoJSON.FeatureCollection;
-
-// Set the Mapbox access token from env before any map is created
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
-
-type ScoredNeighborhood = NeighborhoodData & { pillowIndex: number };
+import { Weights, DEFAULT_WEIGHTS } from "@/data/neighborhoods";
 
 // ─── MAP VIEWPORT ────────────────────────────────────────────────────────────
 const LA_CENTER: [number, number] = [-118.2437, 34.0522];
 const LA_ZOOM = 9.5;
-
 const MAPBOX_STYLE = "mapbox://styles/mapbox/dark-v11";
 
-// ─── LAYER IDs ───────────────────────────────────────────────────────────────
-const SOURCE_ID  = "neighborhoods";
-const FILL_LAYER = "neighborhoods-fill";
-const LINE_LAYER = "neighborhoods-line";
-
-// ─── HEAT SIGNATURE ──────────────────────────────────────────────────────────
-// Score  Hex       Thermal meaning
-// ─────  ───────   ───────────────
-//   0    #140050   cold   — deep purple
-//  25    #5014A0   cool   — violet
-//  45    #D01E28   warm   — red
-//  65    #E08C14   hot    — orange
-//  82    #FFD700   hotter — gold
-// 100    #FFFAE0   max    — pale yellow-white
-const HEAT_STOPS: Array<[number, [number, number, number]]> = [
-  [0,   [20,  0,   80 ]],
-  [25,  [80,  20,  160]],
-  [45,  [208, 30,  40 ]],
-  [65,  [224, 140, 20 ]],
-  [82,  [255, 215, 0  ]],
-  [100, [255, 250, 224]],
+// ─── THERMAL COLOR STOPS (matches thermal-gradient-bar in styles.css) ────────
+// Scores 0-1; ramp: cold (dark purple) → hot (pale yellow)
+const THERMAL_STOPS: [number, string][] = [
+  [0,    "#140050"],
+  [0.25, "#5014A0"],
+  [0.5,  "#D01E28"],
+  [0.65, "#E08C14"],
+  [0.8,  "#FFD700"],
+  [1,    "#FFFAE0"],
 ];
 
-function pillowIndexToHex(score: number): string {
-  const s = Math.max(0, Math.min(100, score));
-  for (let i = 0; i < HEAT_STOPS.length - 1; i++) {
-    const [s0, c0] = HEAT_STOPS[i];
-    const [s1, c1] = HEAT_STOPS[i + 1];
-    if (s <= s1) {
-      const t = (s - s0) / (s1 - s0);
-      const h = (v: number) => Math.round(v).toString(16).padStart(2, "0");
-      return `#${h(c0[0] + t * (c1[0] - c0[0]))}${h(c0[1] + t * (c1[1] - c0[1]))}${h(c0[2] + t * (c1[2] - c0[2]))}`;
-    }
-  }
-  return "#fffae0";
-}
+// Build a Mapbox GL fill-color expression driven by weighted score (0-1)
+// Mapped fields — scores_la.geojson (all 0-1, higher = better):
+//   walkability → score_walkability
+//   transit     → score_transit
+//   traffic     → score_vmt (higher = less car-dependent = better)
+// Falls back to pre-computed composite when all three weights are zero.
+function buildColorExpr(weights: Weights): ExpressionSpecification {
+  const wWalk    = weights.walkability / 5;
+  const wTransit = weights.transit     / 5;
+  const wTraffic = weights.traffic     / 5;
+  const denom    = wWalk + wTransit + wTraffic;
 
-const NEON_BORDER = "#39FF14";
-const BORDER_DASH: [number, number] = [4, 2];
+  const scoreExpr =
+    denom === 0
+      ? ["get", "composite"]
+      : ["/",
+          ["+",
+            ["*", wWalk,    ["get", "score_walkability"]],
+            ["*", wTransit, ["get", "score_transit"]],
+            ["*", wTraffic, ["get", "score_vmt"]],
+          ],
+          denom,
+        ];
 
-// ─── SEARCH HELPERS ──────────────────────────────────────────────────────────
-function getFeatureBounds(feature: GeoJSON.Feature): mapboxgl.LngLatBounds | null {
-  const pts: [number, number][] = [];
-
-  const collectRings = (rings: number[][][]) => {
-    for (const ring of rings) {
-      for (const c of ring) pts.push([c[0], c[1]]);
-    }
-  };
-
-  if (feature.geometry.type === "Polygon") {
-    collectRings(feature.geometry.coordinates as number[][][]);
-  } else if (feature.geometry.type === "MultiPolygon") {
-    for (const poly of feature.geometry.coordinates as number[][][][]) {
-      collectRings(poly as number[][][]);
-    }
-  }
-
-  if (!pts.length) return null;
-  const lngs = pts.map(([lng]) => lng);
-  const lats = pts.map(([, lat]) => lat);
-  return new mapboxgl.LngLatBounds(
-    [Math.min(...lngs), Math.min(...lats)],
-    [Math.max(...lngs), Math.max(...lats)]
-  );
-}
-
-// ─── SOURCE DATA BUILDER ──────────────────────────────────────────────────────
-function buildSourceData(scored: ScoredNeighborhood[]): GeoJSON.FeatureCollection {
-  const scoreByName = new Map(scored.map((n) => [n.name, n]));
-
-  return {
-    type: "FeatureCollection",
-    features: LA_GEOJSON.features.map((feature) => {
-      const name = (feature.properties?.name ?? "") as string;
-      const match = scoreByName.get(name);
-      const pillowIndex = match?.pillowIndex ?? 50;
-      return {
-        type:       "Feature" as const,
-        id:         match?.id ?? name,
-        geometry:   feature.geometry,
-        properties: {
-          id:          match?.id ?? name,
-          name,
-          pillowIndex,
-          fillColor:   pillowIndexToHex(pillowIndex),
-        },
-      };
-    }),
-  };
+  return [
+    "interpolate", ["linear"], scoreExpr,
+    ...THERMAL_STOPS.flatMap(([stop, color]) => [stop, color]),
+  ] as ExpressionSpecification;
 }
 
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 const MapPage = () => {
-  const navigate = useNavigate();
+  const navigate        = useNavigate();
   const mapRef          = useRef<mapboxgl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const [weights, setWeights]                           = useState<Weights>({ ...DEFAULT_WEIGHTS });
-  const [selectedNeighborhood, setSelectedNeighborhood] = useState<ScoredNeighborhood | null>(null);
-  const [mapLoaded, setMapLoaded]                       = useState(false);
-  const [searchQuery, setSearchQuery]                   = useState("");
-  const [searchResults, setSearchResults]               = useState<string[]>([]);
-
-  const scoredNeighborhoods = useMemo<ScoredNeighborhood[]>(
-    () => neighborhoods.map((n) => ({ ...n, pillowIndex: calculatePillowIndex(n.scores, weights) })),
-    [weights]
-  );
-
-  const scoredRef = useRef(scoredNeighborhoods);
-  useEffect(() => { scoredRef.current = scoredNeighborhoods; }, [scoredNeighborhoods]);
-
-  // ── Search filter ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) { setSearchResults([]); return; }
-
-    const nameMatches = LA_GEOJSON.features
-      .map((f) => f.properties?.name as string)
-      .filter((name) => name?.toLowerCase().includes(q));
-
-    const zipMatches = neighborhoods
-      .filter((n) => n.zip.includes(q))
-      .map((n) => n.name);
-
-    const seen = new Set<string>();
-    const merged: string[] = [];
-    for (const name of [...nameMatches, ...zipMatches]) {
-      if (!seen.has(name)) { seen.add(name); merged.push(name); }
-      if (merged.length === 8) break;
-    }
-    setSearchResults(merged);
-  }, [searchQuery]);
-
-  // ── Select neighborhood from search ──────────────────────────────────────
-  const handleSelectNeighborhood = (name: string) => {
-    setSearchQuery("");
-    setSearchResults([]);
-
-    const map = mapRef.current;
-    if (!map) return;
-
-    const feature = LA_GEOJSON.features.find((f) => f.properties?.name === name);
-    if (feature) {
-      const bounds = getFeatureBounds(feature);
-      if (bounds) map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 800 });
-    }
-
-    const base = neighborhoodByName.get(name);
-    if (!base) return;
-    const scored = scoredNeighborhoods.find((n) => n.id === base.id);
-    if (scored) setSelectedNeighborhood(scored);
-  };
+  const [weights, setWeights]         = useState<Weights>({ ...DEFAULT_WEIGHTS });
+  const [mapLoaded, setMapLoaded]     = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
 
   // ── Initialize map ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
+
+    const token = import.meta.env.VITE_MAPBOX_TOKEN;
+    if (!token) { console.error("VITE_MAPBOX_TOKEN is not set in .env"); return; }
+    mapboxgl.accessToken = token;
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
@@ -202,114 +81,128 @@ const MapPage = () => {
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
 
     map.on("load", () => {
-      map.addSource(SOURCE_ID, {
-        type: "geojson",
-        data: buildSourceData(scoredRef.current),
+      setDataLoading(true);
+
+      // ── GeoJSON source: 8,248 census blocks with pre-scored fields ───────
+      map.addSource("census-blocks", {
+        type:       "geojson",
+        data:       "/scores_la.geojson",
+        generateId: true,   // sequential ids for feature-state (hover highlight)
       });
 
-      // Thermal fill
+      // ── Thermal fill layer ───────────────────────────────────────────────
       map.addLayer({
-        id:     FILL_LAYER,
+        id:     "census-heat",
         type:   "fill",
-        source: SOURCE_ID,
+        source: "census-blocks",
         paint:  {
-          "fill-color":   ["get", "fillColor"],
+          "fill-color":   buildColorExpr(DEFAULT_WEIGHTS),
           "fill-opacity": [
-            "interpolate", ["linear"], ["zoom"],
-            8, 0.75,
-            13, 0.55,
+            "case",
+            ["boolean", ["feature-state", "hover"], false],
+            0.88,
+            0.72,
           ],
         },
       });
 
-      // Neon dashed border
+      // ── Block borders ────────────────────────────────────────────────────
       map.addLayer({
-        id:     LINE_LAYER,
+        id:     "census-outline",
         type:   "line",
-        source: SOURCE_ID,
+        source: "census-blocks",
         paint:  {
-          "line-color":     NEON_BORDER,
-          "line-width":     [
-            "interpolate", ["linear"], ["zoom"],
-            9, 0.5,
-            13, 1.5,
-          ],
-          "line-dasharray": BORDER_DASH,
+          "line-color": "rgba(0, 0, 0, 0.18)",
+          "line-width": 0.3,
         },
       });
 
-      map.on("mouseenter", FILL_LAYER, () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", FILL_LAYER, () => { map.getCanvas().style.cursor = ""; });
+      // ── Hover popup ──────────────────────────────────────────────────────
+      const popup = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        className: "pillow-popup",
+        offset:    8,
+      });
+
+      let hoveredId: string | number | null = null;
+
+      map.on("mousemove", "census-heat", (e) => {
+        if (!e.features?.length) return;
+        map.getCanvas().style.cursor = "crosshair";
+
+        const feat  = e.features[0];
+        const p     = feat.properties as Record<string, number | string>;
+
+        // Highlight hovered feature
+        if (hoveredId !== null)
+          map.setFeatureState({ source: "census-blocks", id: hoveredId }, { hover: false });
+        hoveredId = feat.id ?? null;
+        if (hoveredId !== null)
+          map.setFeatureState({ source: "census-blocks", id: hoveredId }, { hover: true });
+
+        const pct = (v: unknown) =>
+          typeof v === "number" ? (v * 100).toFixed(0) : "–";
+
+        popup
+          .setLngLat(e.lngLat)
+          .setHTML(`
+            <div style="line-height:1.7">
+              <div style="color:rgba(0,255,0,0.45);font-size:9px;letter-spacing:.12em;margin-bottom:3px">CENSUS BLOCK</div>
+              <div style="font-size:9px;opacity:.5;margin-bottom:5px">${p.GEOID20 ?? "–"}</div>
+              <div>COMPOSITE&nbsp;<span style="color:#FFD700;font-weight:600">${pct(p.composite)}</span></div>
+              <div style="opacity:.75">WALK&nbsp;<span style="color:#aaffaa">${pct(p.score_walkability)}</span>&nbsp;·&nbsp;TRANSIT&nbsp;<span style="color:#aaffaa">${pct(p.score_transit)}</span></div>
+              <div style="opacity:.75">VMT&nbsp;<span style="color:#aaffaa">${pct(p.score_vmt)}</span>&nbsp;·&nbsp;JOBS&nbsp;<span style="color:#aaffaa">${pct(p.score_employment)}</span></div>
+            </div>
+          `)
+          .addTo(map);
+      });
+
+      map.on("mouseleave", "census-heat", () => {
+        map.getCanvas().style.cursor = "";
+        popup.remove();
+        if (hoveredId !== null) {
+          map.setFeatureState({ source: "census-blocks", id: hoveredId }, { hover: false });
+          hoveredId = null;
+        }
+      });
+
+      // Dismiss loading indicator once GeoJSON data is fully parsed
+      map.on("sourcedata", (e) => {
+        const evt = e as mapboxgl.MapSourceDataEvent;
+        if (evt.sourceId === "census-blocks" && evt.isSourceLoaded)
+          setDataLoading(false);
+      });
 
       setMapLoaded(true);
     });
 
-    mapRef.current = map;
+    map.on("error", () => setDataLoading(false));
 
-    return () => {
-      setMapLoaded(false);
-      map.remove();
-      mapRef.current = null;
-    };
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-  // ── Push updated scores into the source when weights change ──────────────
+  // ── Re-color heatmap whenever weights change ──────────────────────────────
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded) return;
-    const source = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-    source?.setData(buildSourceData(scoredNeighborhoods));
-  }, [scoredNeighborhoods, mapLoaded]);
+    if (!map || !mapLoaded || !map.getLayer("census-heat")) return;
+    map.setPaintProperty("census-heat", "fill-color", buildColorExpr(weights));
+  }, [weights, mapLoaded]);
 
-  // ── Hover tooltip ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoaded) return;
-
-    const popup = new mapboxgl.Popup({
-      closeButton: false,
-      closeOnClick: false,
-      className: "pillow-popup",
-    });
-
-    const onMove = (e: mapboxgl.MapMouseEvent) => {
-      const f = e.features?.[0];
-      if (!f) return;
-      const { name, pillowIndex } = f.properties as { name: string; pillowIndex: number };
-      popup
-        .setLngLat(e.lngLat)
-        .setHTML(`<strong>${name}</strong><br/>PILLOW INDEX: ${Math.round(pillowIndex)}`)
-        .addTo(map);
-    };
-
-    const onLeave = () => popup.remove();
-
-    map.on("mousemove", FILL_LAYER, onMove);
-    map.on("mouseleave", FILL_LAYER, onLeave);
-    return () => {
-      map.off("mousemove", FILL_LAYER, onMove);
-      map.off("mouseleave", FILL_LAYER, onLeave);
-      popup.remove();
-    };
-  }, [mapLoaded]);
-
-  // ── Click → open detail panel ────────────────────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoaded) return;
-
-    const onClick = (e: mapboxgl.MapMouseEvent) => {
-      const name = e.features?.[0]?.properties?.name as string | undefined;
-      if (!name) return;
-      const base = neighborhoodByName.get(name);
-      if (!base) return;
-      const found = scoredNeighborhoods.find((n) => n.id === base.id);
-      if (found) setSelectedNeighborhood(found);
-    };
-
-    map.on("click", FILL_LAYER, onClick);
-    return () => { map.off("click", FILL_LAYER, onClick); };
-  }, [mapLoaded, scoredNeighborhoods]);
+  // ── Token guard ───────────────────────────────────────────────────────────
+  if (!import.meta.env.VITE_MAPBOX_TOKEN) {
+    return (
+      <div className="h-dvh w-screen flex flex-col items-center justify-center bg-background gap-3 px-6 text-center">
+        <Crosshair className="h-8 w-8 text-primary/40" />
+        <p className="font-mono text-sm text-foreground">Missing Mapbox token</p>
+        <p className="font-mono text-xs text-muted-foreground max-w-sm leading-relaxed">
+          Add <span className="text-primary">VITE_MAPBOX_TOKEN</span> to your{" "}
+          <span className="text-primary">.env</span> file, then restart the dev server.
+        </p>
+      </div>
+    );
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -323,37 +216,20 @@ const MapPage = () => {
           </div>
           <span className="font-mono font-bold text-primary text-sm neon-text tracking-wider hidden xs:inline">PILLOW</span>
         </button>
-        <div className="flex-1 relative">
+        <div className="flex-1">
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && searchResults[0]) handleSelectNeighborhood(searchResults[0]);
-              if (e.key === "Escape") { setSearchQuery(""); setSearchResults([]); }
-            }}
-            onBlur={() => setTimeout(() => setSearchResults([]), 150)}
             placeholder="SEARCH NEIGHBORHOOD / ZIP ..."
             className="w-full px-3 sm:px-4 py-2 rounded bg-muted border border-border text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-all tracking-wider uppercase"
+            readOnly
           />
-          {searchResults.length > 0 && (
-            <ul className="absolute top-full left-0 right-0 mt-1 rounded border border-border bg-background/95 backdrop-blur-md overflow-hidden z-[1001]">
-              {searchResults.map((name) => (
-                <li key={name}>
-                  <button
-                    onMouseDown={() => handleSelectNeighborhood(name)}
-                    className="w-full text-left px-3 py-2 text-[11px] font-mono tracking-wide text-foreground/80 hover:bg-primary/10 hover:text-primary transition-colors"
-                  >
-                    {name}
-                    {neighborhoodByName.has(name) && (
-                      <span className="ml-2 text-[9px] text-primary/40 tracking-widest">SCORED</span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
+        {dataLoading && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Loader2 className="h-3.5 w-3.5 text-primary/60 animate-spin" />
+            <span className="text-[10px] font-mono text-primary/60 hidden sm:inline tracking-widest">LOADING DATA…</span>
+          </div>
+        )}
         <span className="px-3 py-1 rounded border border-primary/20 text-[10px] font-mono text-primary/60 shrink-0 hidden sm:inline-block tracking-widest uppercase">
           LA Demo
         </span>
@@ -362,8 +238,8 @@ const MapPage = () => {
       {/* Map */}
       <div ref={mapContainerRef} className="h-full w-full" />
 
-      {/* Thermal Legend (bottom-right, offset for Mapbox nav control) */}
-      <div className="absolute bottom-24 sm:bottom-28 right-3 sm:right-3 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border hidden sm:block">
+      {/* Thermal Legend (bottom-right, above nav control) */}
+      <div className="absolute bottom-24 sm:bottom-28 right-3 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border hidden sm:block">
         <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">Thermal Index</p>
         <div className="thermal-gradient-bar h-2.5 w-32 sm:w-40 rounded-sm" />
         <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
@@ -373,16 +249,6 @@ const MapPage = () => {
       </div>
 
       <FilterSidebar weights={weights} onWeightsChange={setWeights} />
-
-      <AnimatePresence>
-        {selectedNeighborhood && (
-          <AreaDetailPanel
-            neighborhood={selectedNeighborhood}
-            weights={weights}
-            onClose={() => setSelectedNeighborhood(null)}
-          />
-        )}
-      </AnimatePresence>
 
     </div>
   );
