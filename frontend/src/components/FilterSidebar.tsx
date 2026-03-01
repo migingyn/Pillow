@@ -121,10 +121,11 @@ const FilterSidebar = ({
         headers: { "Content-Type": "application/json" },
         signal: ctrl.signal,
         body: JSON.stringify({
-          max_tokens: 300,
+          max_tokens: 400,
           system: `You are a neighborhood scoring assistant. Given a natural language preference query, return ONLY valid JSON (no markdown, no extra text) with this exact shape:
-{"weights":{"price":0,"walkability":0,"traffic":0,"transit":0,"environmentalRisks":0,"noisePollution":0,"airQuality":0},"summary":"one sentence"}
-Use 0 if a factor is irrelevant, 1–2 for minor importance, 3 for moderate, 4–5 for high priority.`,
+{"weights":{"price":0,"walkability":0,"traffic":0,"transit":0,"environmentalRisks":0,"noisePollution":0,"airQuality":0},"selections":{"environmental":{"floodRisk":true,"earthquakeRisk":true,"wildfireRisk":true,"airQuality":true},"livability":{"walkability":true,"transit":true}},"summary":"one sentence"}
+For weights: use 0 if a factor is irrelevant, 1–2 for minor importance, 3 for moderate, 4–5 for high priority.
+For selections: set each boolean to true if the user's query implies that sub-factor matters, false if they explicitly don't care about it or it's unrelated. Default to true unless the query clearly excludes it. At least one selection per category must be true.`,
           messages: [{ role: "user", content: q }],
         }),
       });
@@ -132,7 +133,14 @@ Use 0 if a factor is irrelevant, 1–2 for minor importance, 3 for moderate, 4�
       const data = (await res.json()) as { content?: { text: string }[]; error?: string };
       const text = data.content?.[0]?.text ?? "";
 
-      const parsed = JSON.parse(text) as { weights: Weights; summary: string };
+      const parsed = JSON.parse(text) as {
+        weights: Weights;
+        selections?: {
+          environmental?: Partial<FactorSelections["environmental"]>;
+          livability?: Partial<FactorSelections["livability"]>;
+        };
+        summary: string;
+      };
 
       const clamped = Object.fromEntries(
         (Object.keys(parsed.weights) as ScoreFactor[]).map((k) => [
@@ -142,6 +150,39 @@ Use 0 if a factor is irrelevant, 1–2 for minor importance, 3 for moderate, 4�
       ) as unknown as Weights;
 
       onWeightsChange(clamped);
+
+      if (parsed.selections) {
+        const next: FactorSelections = {
+          affordability: { ...selections.affordability },
+          livability: { ...selections.livability },
+          environmental: { ...selections.environmental },
+        };
+
+        if (parsed.selections.environmental) {
+          const env = parsed.selections.environmental;
+          const envKeys = ["floodRisk", "earthquakeRisk", "wildfireRisk", "airQuality"] as const;
+          const anyTrue = envKeys.some((k) => env[k] !== false);
+          if (anyTrue) {
+            envKeys.forEach((k) => {
+              if (env[k] !== undefined) next.environmental[k] = env[k] as boolean;
+            });
+          }
+        }
+
+        if (parsed.selections.livability) {
+          const liv = parsed.selections.livability;
+          const livKeys = ["walkability", "transit"] as const;
+          const anyTrue = livKeys.some((k) => liv[k] !== false);
+          if (anyTrue) {
+            livKeys.forEach((k) => {
+              if (liv[k] !== undefined) next.livability[k] = liv[k] as boolean;
+            });
+          }
+        }
+
+        onSelectionsChange(next);
+      }
+
       setNlFeedback(parsed.summary);
       setNlQuery("");
     } catch {
