@@ -1,6 +1,6 @@
 import { useEffect, useRef, useMemo, useState } from "react";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { AnimatePresence } from "framer-motion";
 import { Crosshair } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -19,23 +19,20 @@ import {
 // ─── GeoJSON GEOMETRY ────────────────────────────────────────────────────────
 // Imported as a static module so it's available synchronously at map-load time
 // with no fetch/timing issues. Coordinates are already [lng, lat] (GeoJSON standard).
-// TO REPLACE WITH REAL DATA: swap this import for an API call that returns a
-// GeoJSON FeatureCollection with the same coordinate convention.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import _laGeoJSONRaw from "@/data/la-neighborhoods.json";
 const LA_GEOJSON = _laGeoJSONRaw as unknown as GeoJSON.FeatureCollection;
 
+// Set the Mapbox access token from env before any map is created
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
+
 type ScoredNeighborhood = NeighborhoodData & { pillowIndex: number };
 
 // ─── MAP VIEWPORT ────────────────────────────────────────────────────────────
-// Hardcoded to LA for the demo. To support other cities/datasets, replace these
-// with values from a dataset-level config (e.g. dataset.viewport.center/zoom).
-// MapLibre uses [lng, lat] — opposite of Leaflet's [lat, lng].
-const LA_CENTER: [number, number] = [-118.2637, 34.0522];
-const LA_ZOOM = 10;
+const LA_CENTER: [number, number] = [-118.2437, 34.0522];
+const LA_ZOOM = 9.5;
 
-const MAPTILER_STYLE =
-  "https://api.maptiler.com/maps/019ca644-729a-7eee-af3e-8eea6c2b26d6/style.json?key=27Xv0X1EmSlGDpw9yne9";
+const MAPBOX_STYLE = "mapbox://styles/mapbox/dark-v11";
 
 // ─── LAYER IDs ───────────────────────────────────────────────────────────────
 const SOURCE_ID  = "neighborhoods";
@@ -43,10 +40,6 @@ const FILL_LAYER = "neighborhoods-fill";
 const LINE_LAYER = "neighborhoods-line";
 
 // ─── HEAT SIGNATURE ──────────────────────────────────────────────────────────
-// Color stops for the thermal gradient (score 0–100).
-// To change the palette, edit the RGB values below — they map 1:1 with the
-// gradient shown in the thermal legend in the bottom-right corner.
-//
 // Score  Hex       Thermal meaning
 // ─────  ───────   ───────────────
 //   0    #140050   cold   — deep purple
@@ -64,9 +57,6 @@ const HEAT_STOPS: Array<[number, [number, number, number]]> = [
   [100, [255, 250, 224]],
 ];
 
-// Converts a 0–100 pillowIndex to a hex color via linear interpolation
-// across HEAT_STOPS. Pre-computing in JS (rather than using a MapLibre
-// expression) avoids any version-specific expression-parsing issues.
 function pillowIndexToHex(score: number): string {
   const s = Math.max(0, Math.min(100, score));
   for (let i = 0; i < HEAT_STOPS.length - 1; i++) {
@@ -81,19 +71,11 @@ function pillowIndexToHex(score: number): string {
   return "#fffae0";
 }
 
-// Neon green dashed border — uniform green outline on all neighborhood polygons.
-// #39FF14 is standard "electric neon green" — full brightness so borders pop
-// against the dark map even on cold (dark purple) fill polygons.
-// NOTE: MapLibre's fill-outline-color only draws 1px with no width control.
-// For thick/dashed borders a separate line layer is required (LINE_LAYER below).
 const NEON_BORDER = "#39FF14";
-const BORDER_DASH: [number, number] = [4, 2]; // [dash-px, gap-px]
+const BORDER_DASH: [number, number] = [4, 2];
 
 // ─── SEARCH HELPERS ──────────────────────────────────────────────────────────
-// Computes a bounding box from any GeoJSON feature's geometry so the map can
-// fitBounds() when a user selects a search result. Handles both Polygon and
-// MultiPolygon (the LA GeoJSON uses MultiPolygon exclusively).
-function getFeatureBounds(feature: GeoJSON.Feature): maplibregl.LngLatBounds | null {
+function getFeatureBounds(feature: GeoJSON.Feature): mapboxgl.LngLatBounds | null {
   const pts: [number, number][] = [];
 
   const collectRings = (rings: number[][][]) => {
@@ -113,19 +95,13 @@ function getFeatureBounds(feature: GeoJSON.Feature): maplibregl.LngLatBounds | n
   if (!pts.length) return null;
   const lngs = pts.map(([lng]) => lng);
   const lats = pts.map(([, lat]) => lat);
-  return new maplibregl.LngLatBounds(
+  return new mapboxgl.LngLatBounds(
     [Math.min(...lngs), Math.min(...lats)],
     [Math.max(...lngs), Math.max(...lats)]
   );
 }
 
 // ─── SOURCE DATA BUILDER ──────────────────────────────────────────────────────
-// Merges the real GeoJSON geometry with computed pillow scores.
-// Neighborhoods present in the GeoJSON but not in the score dataset default
-// to pillowIndex: 50 (mid-range / neutral warm tone on the thermal scale).
-//
-// The GeoJSON uses MultiPolygon geometries with coordinates already in
-// [lng, lat] order — no coordinate flipping required.
 function buildSourceData(scored: ScoredNeighborhood[]): GeoJSON.FeatureCollection {
   const scoreByName = new Map(scored.map((n) => [n.name, n]));
 
@@ -153,7 +129,7 @@ function buildSourceData(scored: ScoredNeighborhood[]): GeoJSON.FeatureCollectio
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 const MapPage = () => {
   const navigate = useNavigate();
-  const mapRef          = useRef<maplibregl.Map | null>(null);
+  const mapRef          = useRef<mapboxgl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [weights, setWeights]                           = useState<Weights>({ ...DEFAULT_WEIGHTS });
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<ScoredNeighborhood | null>(null);
@@ -161,14 +137,11 @@ const MapPage = () => {
   const [searchQuery, setSearchQuery]                   = useState("");
   const [searchResults, setSearchResults]               = useState<string[]>([]);
 
-  // Re-scores every neighborhood whenever weight sliders change.
   const scoredNeighborhoods = useMemo<ScoredNeighborhood[]>(
     () => neighborhoods.map((n) => ({ ...n, pillowIndex: calculatePillowIndex(n.scores, weights) })),
     [weights]
   );
 
-  // Ref always holds the latest scored list — lets async map callbacks read
-  // current data without closure staleness.
   const scoredRef = useRef(scoredNeighborhoods);
   useEffect(() => { scoredRef.current = scoredNeighborhoods; }, [scoredNeighborhoods]);
 
@@ -218,40 +191,49 @@ const MapPage = () => {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    const map = new maplibregl.Map({
+    const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style:     MAPTILER_STYLE,
+      style:     MAPBOX_STYLE,
       center:    LA_CENTER,
       zoom:      LA_ZOOM,
+      antialias: true,
     });
 
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
+
     map.on("load", () => {
-      // Source is populated immediately with scored data — no async wait needed
-      // because LA_GEOJSON is a synchronous module import.
       map.addSource(SOURCE_ID, {
         type: "geojson",
         data: buildSourceData(scoredRef.current),
       });
 
-      // Thermal fill — color read from the pre-computed fillColor feature property
+      // Thermal fill
       map.addLayer({
         id:     FILL_LAYER,
         type:   "fill",
         source: SOURCE_ID,
         paint:  {
           "fill-color":   ["get", "fillColor"],
-          "fill-opacity": 0.7,
+          "fill-opacity": [
+            "interpolate", ["linear"], ["zoom"],
+            8, 0.75,
+            13, 0.55,
+          ],
         },
       });
 
-      // Neon dashed border — uniform green outline on all neighborhood polygons
+      // Neon dashed border
       map.addLayer({
         id:     LINE_LAYER,
         type:   "line",
         source: SOURCE_ID,
         paint:  {
           "line-color":     NEON_BORDER,
-          "line-width":     2,
+          "line-width":     [
+            "interpolate", ["linear"], ["zoom"],
+            9, 0.5,
+            13, 1.5,
+          ],
           "line-dasharray": BORDER_DASH,
         },
       });
@@ -265,10 +247,6 @@ const MapPage = () => {
     mapRef.current = map;
 
     return () => {
-      // Reset mapLoaded so the source-update effect re-runs if React Strict Mode
-      // mounts a second map instance (dev-only double-invocation). Without this
-      // reset, setMapLoaded(true) from the second map fires with no state change
-      // and the effect never re-triggers, leaving the source empty.
       setMapLoaded(false);
       map.remove();
       mapRef.current = null;
@@ -279,7 +257,7 @@ const MapPage = () => {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
-    const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+    const source = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     source?.setData(buildSourceData(scoredNeighborhoods));
   }, [scoredNeighborhoods, mapLoaded]);
 
@@ -288,9 +266,13 @@ const MapPage = () => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
-    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: "pillow-popup" });
+    const popup = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      className: "pillow-popup",
+    });
 
-    const onMove = (e: maplibregl.MapLayerMouseEvent) => {
+    const onMove = (e: mapboxgl.MapMouseEvent) => {
       const f = e.features?.[0];
       if (!f) return;
       const { name, pillowIndex } = f.properties as { name: string; pillowIndex: number };
@@ -316,7 +298,7 @@ const MapPage = () => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
-    const onClick = (e: maplibregl.MapLayerMouseEvent) => {
+    const onClick = (e: mapboxgl.MapMouseEvent) => {
       const name = e.features?.[0]?.properties?.name as string | undefined;
       if (!name) return;
       const base = neighborhoodByName.get(name);
@@ -380,8 +362,8 @@ const MapPage = () => {
       {/* Map */}
       <div ref={mapContainerRef} className="h-full w-full" />
 
-      {/* Thermal Legend (bottom-right) */}
-      <div className="absolute bottom-4 sm:bottom-6 right-3 sm:right-6 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border hidden sm:block">
+      {/* Thermal Legend (bottom-right, offset for Mapbox nav control) */}
+      <div className="absolute bottom-24 sm:bottom-28 right-3 sm:right-3 z-[999] p-2.5 sm:p-3 rounded bg-background/90 border border-border backdrop-blur-md neon-border hidden sm:block">
         <p className="text-[9px] font-mono text-primary/70 mb-2 tracking-widest uppercase">Thermal Index</p>
         <div className="thermal-gradient-bar h-2.5 w-32 sm:w-40 rounded-sm" />
         <div className="flex justify-between text-[8px] font-mono text-muted-foreground mt-1 tracking-wider">
